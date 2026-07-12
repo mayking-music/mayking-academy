@@ -135,6 +135,7 @@
       END_TIME_OPTIONS.push(`${h}:${m}`);
     }
     
+    // 공간메이킹은 정각(1시간 단위)만 선택 가능
     const SPACE_TIME_OPTIONS = [];
     for(let i = 10; i <= 22; i++) {
       SPACE_TIME_OPTIONS.push(`${String(i).padStart(2, '0')}:00`);
@@ -159,6 +160,13 @@
     const DEFAULT_INSTRUCTOR_CATEGORIES = ['보컬', '드럼', '피아노', '피아노/작곡/미디', '베이스/녹음/미디', '베이스/어쿠스틱/기타', '어쿠스틱/일렉기타'];
 
     function App() {
+      // Session Storage를 이용한 로그인 유지
+      const [isAdmin, setIsAdmin] = useState(() => sessionStorage.getItem('mayking_isAdmin') === 'true');
+      const [loggedInUser, setLoggedInUser] = useState(() => {
+        const storedUser = sessionStorage.getItem('mayking_loggedInUser');
+        return storedUser ? JSON.parse(storedUser) : null;
+      });
+
       const [currentDate, setCurrentDate] = useState(new Date());
       const [rooms, setRooms] = useState(INITIAL_ROOMS);
       const [spaceRooms, setSpaceRooms] = useState(INITIAL_SPACE_ROOMS);
@@ -175,9 +183,8 @@
       const [toastMessage, setToastMessage] = useState(null);
       const [currentView, setCurrentView] = useState('landing'); 
 
+      const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false); // 로그아웃 메뉴용 상태
       const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-      const [isAdmin, setIsAdmin] = useState(false);
-      const [loggedInUser, setLoggedInUser] = useState(null);
 
       const [isEventModalOpen, setIsEventModalOpen] = useState(false);
       const [selectedEvent, setSelectedEvent] = useState(null);
@@ -203,7 +210,7 @@
       const [formStartTime, setFormStartTime] = useState('10:00');
       const [formEndTime, setFormEndTime] = useState('11:00');
 
-      // Click Range Selection State
+      // 강사 스케줄 관리용 클릭-투-클릭 상태 유지
       const [lastClickAnchor, setLastClickAnchor] = useState(null);
 
       useEffect(() => {
@@ -258,6 +265,8 @@
 
       const handleLogout = () => {
         setIsAdmin(false); setLoggedInUser(null); setCurrentView('landing');
+        sessionStorage.removeItem('mayking_isAdmin');
+        sessionStorage.removeItem('mayking_loggedInUser');
         showToast("안전하게 로그아웃 되었습니다.");
       };
 
@@ -285,11 +294,19 @@
         if (role === 'student') {
           const nextUsers = users.map(u => u.id === id ? { ...u, ...updatedData } : u);
           setUsers(nextUsers); saveToCloud({ users: nextUsers });
-          if(loggedInUser?.id === id) setLoggedInUser({...loggedInUser, ...updatedData});
+          if(loggedInUser?.id === id) {
+             const updated = {...loggedInUser, ...updatedData};
+             setLoggedInUser(updated);
+             sessionStorage.setItem('mayking_loggedInUser', JSON.stringify(updated));
+          }
         } else {
           const nextInst = instructors.map(i => i.id === id ? { ...i, ...updatedData } : i);
           setInstructors(nextInst); saveToCloud({ instructors: nextInst });
-          if(loggedInUser?.id === id) setLoggedInUser({...loggedInUser, ...updatedData});
+          if(loggedInUser?.id === id) {
+             const updated = {...loggedInUser, ...updatedData};
+             setLoggedInUser(updated);
+             sessionStorage.setItem('mayking_loggedInUser', JSON.stringify(updated));
+          }
         }
         showToast("계정 정보가 업데이트 되었습니다.");
         setSelectedAccountForEdit(null);
@@ -317,7 +334,7 @@
         showToast("과목이 추가되었습니다.");
       }
 
-      // 강사 스케줄 관리용 (클릭-투-클릭 범위 선택)
+      // 클릭-투-클릭 범위 선택 로직
       const handleTimeCellClick = (instructorId, dayValue, timeIndex) => {
           const timeStr = GRID_TIME_SLOTS[timeIndex];
           const instData = instructors.find(i => i.id === instructorId);
@@ -326,7 +343,7 @@
           const currentAvail = instData.availability?.[`${dayValue}-${timeStr}`] || false;
 
           if (lastClickAnchor && lastClickAnchor.instructorId === instructorId && lastClickAnchor.day === dayValue) {
-              // Fill Range
+              // 두 번째 클릭: 범위 설정
               const minIdx = Math.min(lastClickAnchor.index, timeIndex);
               const maxIdx = Math.max(lastClickAnchor.index, timeIndex);
               const updates = {};
@@ -342,13 +359,14 @@
               });
               setInstructors(nextInstructors);
               saveToCloud({ instructors: nextInstructors });
-              setLastClickAnchor(null); // Clear anchor after filling
+              setLastClickAnchor(null); 
               
+              // 알림 전송 (강사가 본인 정보 수정 시)
               if (!isAdmin) {
-                  addSystemNotification(`[강사알림] ${instData.name} 강사님이 스케줄을 변경했습니다.`);
+                  addSystemNotification(`[강사알림] ${instData.name} 강사님이 수업 스케줄을 변경했습니다.`);
               }
           } else {
-              // Single Toggle & Set Anchor
+              // 첫 번째 클릭: 앵커 설정
               const newMode = !currentAvail;
               const nextInstructors = instructors.map(inst => {
                   if (inst.id === instructorId) {
@@ -360,49 +378,48 @@
               saveToCloud({ instructors: nextInstructors });
               
               setLastClickAnchor({ instructorId, day: dayValue, index: timeIndex, mode: newMode });
-              
-              if (!isAdmin) {
-                  addSystemNotification(`[강사알림] ${instData.name} 강사님이 스케줄을 변경했습니다.`);
-              }
           }
       };
 
-      const handleSaveEvent = (eventData) => {
-        if (eventData.startTime >= eventData.endTime) return showToast("⚠️ 종료 시간은 시작 시간보다 늦어야 합니다.");
+      const handleSaveEvent = (payload) => {
+        if (payload.startTime >= payload.endTime) return showToast("⚠️ 종료 시간은 시작 시간보다 늦어야 합니다.");
         
         const hasConflict = events.some(ev => {
-          if (ev.roomId !== eventData.roomId) return false;
+          if (ev.roomId !== payload.roomId) return false;
           if (selectedEvent && ev.id === selectedEvent.id) return false;
           
           let dateOverlap = false;
-          if(ev.type === 'class' && eventData.type === 'class') dateOverlap = ev.dayOfWeek === eventData.dayOfWeek;
-          else if(ev.type !== 'class' && eventData.type !== 'class') dateOverlap = ev.date === eventData.date;
-          else if(ev.type === 'class' && eventData.type !== 'class') dateOverlap = ev.dayOfWeek === new Date(eventData.date).getDay();
-          else if(ev.type !== 'class' && eventData.type === 'class') dateOverlap = new Date(ev.date).getDay() === eventData.dayOfWeek;
+          if(ev.type === 'class' && payload.type === 'class') dateOverlap = ev.dayOfWeek === payload.dayOfWeek;
+          else if(ev.type !== 'class' && payload.type !== 'class') dateOverlap = ev.date === payload.date;
+          else if(ev.type === 'class' && payload.type !== 'class') dateOverlap = ev.dayOfWeek === new Date(payload.date).getDay();
+          else if(ev.type !== 'class' && payload.type === 'class') dateOverlap = new Date(ev.date).getDay() === payload.dayOfWeek;
 
           if(!dateOverlap) return false;
-          return ev.startTime < eventData.endTime && ev.endTime > eventData.startTime;
+          return ev.startTime < payload.endTime && ev.endTime > payload.startTime;
         });
 
         if (hasConflict) return showToast("⚠️ 해당 시간에 이미 수업이나 예약이 존재합니다.");
 
+        // Clean payload (remove undefined values for Firestore)
+        const cleanPayload = Object.fromEntries(Object.entries(payload).filter(([_, v]) => v !== undefined));
+
         let nextEvents;
         let logMsg = "";
-        const targetRooms = eventData.type === 'space_reservation' ? spaceRooms : rooms;
-        const roomName = targetRooms.find(r => r.id === eventData.roomId)?.name || '알수없음';
+        const targetRooms = cleanPayload.type === 'space_reservation' ? spaceRooms : rooms;
+        const roomName = targetRooms.find(r => r.id === cleanPayload.roomId)?.name || '알수없음';
 
         if (selectedEvent && selectedEvent.id) {
-          nextEvents = events.map(ev => ev.id === selectedEvent.id ? { ...ev, ...eventData } : ev);
+          nextEvents = events.map(ev => ev.id === selectedEvent.id ? { ...ev, ...cleanPayload } : ev);
           showToast("📝 일정이 성공적으로 수정되었습니다.");
-          if (!isAdmin && eventData.type !== 'class') {
-             logMsg = `[예약수정] ${loggedInUser?.name || '익명'}님이 ${eventData.date} ${eventData.startTime} [${roomName}] 예약을 수정했습니다.`;
+          if (!isAdmin && cleanPayload.type !== 'class') {
+             logMsg = `[예약수정] ${loggedInUser?.name || '익명'}님이 ${cleanPayload.date} ${cleanPayload.startTime} [${roomName}] 예약을 수정했습니다.`;
           }
         } else {
-          const newEvent = { ...eventData, id: `evt-${Date.now()}` };
+          const newEvent = { ...cleanPayload, id: `evt-${Date.now()}` };
           nextEvents = [...events, newEvent];
           showToast("📅 새 일정이 등록되었습니다.");
-          if (!isAdmin && eventData.type !== 'class') {
-             logMsg = `[신규예약] ${loggedInUser?.name || '익명'}님이 ${eventData.date} ${eventData.startTime} [${roomName}] 공간을 예약했습니다.`;
+          if (!isAdmin && cleanPayload.type !== 'class') {
+             logMsg = `[신규예약] ${loggedInUser?.name || '익명'}님이 ${cleanPayload.date} ${cleanPayload.startTime} [${roomName}] 공간을 예약했습니다.`;
           }
         }
 
@@ -466,7 +483,7 @@
         }
         
         while (true) {
-            // 공간메이킹은 월~일 모두 허용, 연습실은 일요일(0) 제외
+            // 연습실은 일요일(0) 제외, 공간메이킹은 포함
             if (currentView === 'space_calendar' || curr.getDay() !== 0) { 
                 const y = curr.getFullYear();
                 const m = curr.getMonth();
@@ -530,7 +547,6 @@
         return slots;
       }, [assignInstId, instructors]);
 
-      // 공간메이킹 전용 시간 옵션 계산 (일요일 18시 이후 제한)
       const getSpaceStartTimeOptions = (selectedDateStr) => {
          if(!selectedDateStr) return SPACE_TIME_OPTIONS;
          const isSunday = new Date(selectedDateStr).getDay() === 0;
@@ -548,26 +564,49 @@
             </div>
           )}
 
+          {/* 테마 버튼: 화면 맨 아래 좌측에 고정 */}
+          <div className="fixed bottom-6 left-6 z-[100]">
+            <button onClick={() => setDarkMode(!darkMode)} className="p-3 md:p-2.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.5)] hover:scale-105 active:scale-95 transition-all shrink-0" title="테마 변경">
+              {darkMode ? <SvgIcon name="sun" className="w-5 h-5 md:w-4 md:h-4" /> : <SvgIcon name="moon" className="w-5 h-5 md:w-4 md:h-4" />}
+            </button>
+          </div>
+
           {/* 랜딩(메인) 화면 */}
           {currentView === 'landing' ? (
             <div className="w-full h-full overflow-y-auto bg-white dark:bg-neutral-950 relative">
               
-              {/* 상단 메뉴 우측 고정 */}
-              <div className="absolute top-6 right-6 flex items-center justify-end gap-2.5 md:gap-3 z-50">
-                {isAdmin && (
+              {/* 관리자 알림 센터 아이콘 - 좌측 상단으로 분리 */}
+              {isAdmin && (
+                <div className="absolute top-6 left-6 z-[100]">
                   <button onClick={() => setIsNotiModalOpen(true)} className="relative p-2 md:p-2.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 shadow-sm hover:scale-105 active:scale-95 transition-all">
-                    <SvgIcon name="bell" className="w-4 h-4" />
+                    <SvgIcon name="bell" className="w-5 h-5 md:w-4 md:h-4" />
                     {notifications.length > 0 && <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border border-white dark:border-neutral-900 animate-pulse"></span>}
                   </button>
-                )}
+                </div>
+              )}
 
+              {/* 상단 메뉴: 우측 상단 고정 */}
+              <div className="absolute top-6 right-6 flex items-center justify-end gap-2.5 md:gap-3 z-[100]">
                 {loggedInUser || isAdmin ? (
                   <div className="flex items-center gap-2 md:gap-3">
-                    <span className={`text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-1.5 ${isAdmin ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:border-indigo-800/60' : loggedInUser.role === 'instructor' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:border-purple-800/60' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800/60'}`}>
-                      <SvgIcon name={isAdmin ? 'settings' : loggedInUser.role === 'instructor' ? 'instructor' : 'users'} className="w-4 h-4" />
-                      <span className="hidden sm:inline">{isAdmin ? '메이킹님 (관리자)' : `${loggedInUser.name}${loggedInUser.role === 'instructor' ? 'T' : ''}님`}</span>
-                      <span className="sm:hidden">{isAdmin ? '관리자' : `${loggedInUser.name}`}</span>
-                    </span>
+                    <div className="relative">
+                      <button onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)} className={`text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-1.5 ${isAdmin ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:border-indigo-800/60' : loggedInUser.role === 'instructor' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:border-purple-800/60' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800/60'}`}>
+                        <SvgIcon name={isAdmin ? 'settings' : loggedInUser.role === 'instructor' ? 'instructor' : 'users'} className="w-4 h-4" />
+                        <span className="hidden sm:inline">{isAdmin ? '메이킹님 (관리자)' : `${loggedInUser.name}${loggedInUser.role === 'instructor' ? 'T' : ''}님`}</span>
+                        <span className="sm:hidden">{isAdmin ? '관리자' : `${loggedInUser.name}`}</span>
+                      </button>
+                      
+                      {isProfileMenuOpen && (
+                        <React.Fragment>
+                          <div className="fixed inset-0 z-[105]" onClick={() => setIsProfileMenuOpen(false)}></div>
+                          <div className="absolute top-full right-0 mt-2 w-28 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-xl overflow-hidden flex flex-col z-[110]">
+                            <button onClick={() => { setIsProfileMenuOpen(false); handleLogout(); }} className="px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-center transition-colors">
+                              로그아웃
+                            </button>
+                          </div>
+                        </React.Fragment>
+                      )}
+                    </div>
                     
                     <button onClick={() => {
                       if(isAdmin) setIsAdminSettingsOpen(true);
@@ -576,22 +615,16 @@
                     }} className="p-2 md:p-2.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 shadow-sm hover:scale-105 active:scale-95 transition-all" title="계정 설정">
                       <SvgIcon name="settings" className="w-4 h-4" />
                     </button>
-
-                    <button onClick={handleLogout} className="px-3 md:px-4 py-1.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 text-[10px] md:text-xs font-bold shadow-sm hover:scale-105 active:scale-95 transition-all">로그아웃</button>
                   </div>
                 ) : (
                   <button onClick={() => setIsLoginModalOpen(true)} className="px-4 md:px-6 py-2 md:py-2.5 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-[10px] md:text-xs font-bold shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
                     <SvgIcon name="users" className="w-4 h-4" /> 시스템 로그인
                   </button>
                 )}
-                <button onClick={() => setDarkMode(!darkMode)} className="p-2 md:p-2.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 shadow-sm hover:scale-105 active:scale-95 transition-all shrink-0">
-                  {darkMode ? <SvgIcon name="sun" className="w-4 h-4" /> : <SvgIcon name="moon" className="w-4 h-4" />}
-                </button>
               </div>
 
-              <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center py-24 px-6 max-w-4xl mx-auto relative z-10">
-                <div className="text-center mb-10 md:mb-14">
-                  {/* 배경 없는 대형 로고 */}
+              <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center py-20 px-6 max-w-4xl mx-auto relative z-10">
+                <div className="text-center mb-10 md:mb-14 mt-12">
                   <div className="mx-auto mb-6 inline-block">
                     <img src="./logo.png" alt="메이킹학원 로고" className="h-64 sm:h-80 md:h-[400px] w-auto object-contain transform hover:scale-105 transition-transform duration-300" />
                   </div>
@@ -611,13 +644,15 @@
                     <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center leading-relaxed">개인 연습실 사용 일정<br/>조회 및 일회성 예약</p>
                   </div>
 
-                  <div onClick={() => setCurrentView('space_calendar')} className="flex-1 min-w-[240px] max-w-[280px] mx-auto sm:mx-0 group flex flex-col items-center justify-center p-6 bg-white dark:bg-neutral-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-lg hover:shadow-xl hover:border-purple-500 dark:hover:border-purple-400 cursor-pointer transition-all transform hover:-translate-y-1">
-                    <div className="w-14 h-14 rounded-2xl bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                      <SvgIcon name="speaker" className="w-7 h-7" />
+                  {isAdmin && (
+                    <div onClick={() => setCurrentView('space_calendar')} className="flex-1 min-w-[240px] max-w-[280px] mx-auto sm:mx-0 group flex flex-col items-center justify-center p-6 bg-white dark:bg-neutral-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-lg hover:shadow-xl hover:border-purple-500 dark:hover:border-purple-400 cursor-pointer transition-all transform hover:-translate-y-1">
+                      <div className="w-14 h-14 rounded-2xl bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <SvgIcon name="speaker" className="w-7 h-7" />
+                      </div>
+                      <h2 className="text-lg font-bold text-neutral-800 dark:text-white mb-1.5">공간메이킹</h2>
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center leading-relaxed">합주실 및 대여 공간<br/>사용 일정 예약</p>
                     </div>
-                    <h2 className="text-lg font-bold text-neutral-800 dark:text-white mb-1.5">공간메이킹</h2>
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center leading-relaxed">합주실 및 대여 공간<br/>사용 일정 예약</p>
-                  </div>
+                  )}
 
                   <div onClick={() => { if (isAdmin || loggedInUser) setCurrentView('student_dashboard'); else setIsLoginModalOpen(true); }} className="flex-1 min-w-[240px] max-w-[280px] mx-auto sm:mx-0 group flex flex-col items-center justify-center p-6 bg-white dark:bg-neutral-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-lg hover:shadow-xl hover:border-emerald-500 dark:hover:border-emerald-400 cursor-pointer transition-all transform hover:-translate-y-1">
                     <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
@@ -667,12 +702,21 @@
                   </div>
                 </div>
                 <div className="flex items-center gap-3 mt-1">
-                  <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors">
-                    {darkMode ? <SvgIcon name="sun" className="w-4 h-4" /> : <SvgIcon name="moon" className="w-4 h-4" />}
-                  </button>
-                  <span className={`text-[10px] md:text-xs font-bold bg-neutral-50 dark:bg-neutral-900/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 border ${isAdmin ? 'text-indigo-600 border-indigo-200 dark:border-indigo-800' : loggedInUser?.role === 'instructor' ? 'text-purple-600 border-purple-200 dark:border-purple-800' : 'text-emerald-600 border-emerald-200 dark:border-emerald-800'}`}>
-                    <SvgIcon name="users" className="w-4 h-4" /> {isAdmin ? "메이킹 관리자" : `${loggedInUser?.name}${loggedInUser?.role === 'instructor' ? 'T' : ''}님`}
-                  </span>
+                  <div className="relative">
+                    <button onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)} className={`text-[10px] md:text-xs font-bold bg-neutral-50 dark:bg-neutral-900/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 border ${isAdmin ? 'text-indigo-600 border-indigo-200 dark:border-indigo-800' : loggedInUser?.role === 'instructor' ? 'text-purple-600 border-purple-200 dark:border-purple-800' : 'text-emerald-600 border-emerald-200 dark:border-emerald-800'}`}>
+                      <SvgIcon name="users" className="w-4 h-4" /> {isAdmin ? "메이킹 관리자" : `${loggedInUser?.name}${loggedInUser?.role === 'instructor' ? 'T' : ''}님`}
+                    </button>
+                    {isProfileMenuOpen && (
+                      <React.Fragment>
+                        <div className="fixed inset-0 z-[105]" onClick={() => setIsProfileMenuOpen(false)}></div>
+                        <div className="absolute top-full right-0 mt-2 w-28 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-xl overflow-hidden flex flex-col z-[110]">
+                          <button onClick={() => { setIsProfileMenuOpen(false); handleLogout(); }} className="px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-center transition-colors">
+                            로그아웃
+                          </button>
+                        </div>
+                      </React.Fragment>
+                    )}
+                  </div>
                 </div>
               </header>
 
@@ -759,7 +803,7 @@
 
           ) : currentView === 'admin_dashboard' && isAdmin ? (
             <div className="flex flex-col md:flex-row h-full w-full overflow-y-auto md:overflow-hidden bg-neutral-50 dark:bg-neutral-950">
-              <aside className="w-full md:w-64 flex-shrink-0 bg-white dark:bg-neutral-900 border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 flex flex-col h-auto md:h-full z-20">
+              <aside className="w-full h-auto md:h-full md:w-64 flex-shrink-0 bg-white dark:bg-neutral-900 border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 flex flex-col z-20">
                 <div className="p-4 flex-none border-b border-neutral-100 dark:border-neutral-800 pb-4">
                   <div className="flex items-start gap-2.5">
                     <div className="shrink-0 mt-1 flex items-center justify-center">
@@ -779,7 +823,7 @@
                   </div>
                 </div>
 
-                <div className="flex flex-col md:flex-1 md:overflow-y-auto p-3 space-y-1 hide-scrollbar">
+                <div className="flex flex-col h-auto md:flex-1 md:overflow-y-auto p-3 space-y-1 hide-scrollbar">
                   <div className="text-[10px] font-black text-neutral-400 uppercase tracking-widest px-2 mb-2 mt-2">Accounts</div>
                   <button onClick={() => {setAdminTab('students'); setAdminListMode('list');}} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${adminTab === 'students' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}>
                     <SvgIcon name="users" className="w-4 h-4" /> 원생 관리
@@ -792,17 +836,20 @@
                   <button onClick={() => setAdminTab('class_assign')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${adminTab === 'class_assign' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}>
                     <SvgIcon name="calendar" className="w-4 h-4" /> 수업 배정
                   </button>
+                  <button onClick={() => setAdminTab('class_list')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${adminTab === 'class_list' ? 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}>
+                    <SvgIcon name="grid" className="w-4 h-4" /> 정규 수업 종합 관리
+                  </button>
                   <button onClick={() => setAdminTab('class_manage')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${adminTab === 'class_manage' ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}>
                     <SvgIcon name="clock" className="w-4 h-4" /> 수업(강사) 시간관리
                   </button>
                 </div>
               </aside>
 
-              <div className="flex-1 flex flex-col h-[800px] md:h-full shrink-0 overflow-hidden bg-neutral-50 dark:bg-neutral-950">
+              <div className="flex-1 flex flex-col h-auto md:h-full shrink-0 md:overflow-hidden bg-neutral-50 dark:bg-neutral-950">
                 
                 {/* 탭: 계정 관리 */}
                 {(adminTab === 'students' || adminTab === 'instructors') && (
-                  <div className="p-6 md:p-10 flex-1 overflow-y-auto relative">
+                  <div className="p-6 md:p-10 flex-1 h-auto md:overflow-y-auto relative">
                     <div className="max-w-4xl mx-auto">
                       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
                         <h2 className="text-xl md:text-2xl font-black text-neutral-900 dark:text-white flex items-center gap-2">
@@ -902,7 +949,7 @@
 
                 {/* 탭: 수업 배정 */}
                 {adminTab === 'class_assign' && (
-                  <div className="p-6 md:p-10 flex-1 overflow-y-auto">
+                  <div className="p-6 md:p-10 flex-1 h-auto md:overflow-y-auto relative">
                     <div className="max-w-3xl mx-auto">
                       <div className="mb-6">
                         <h2 className="text-xl md:text-2xl font-black text-neutral-900 dark:text-white flex items-center gap-2">
@@ -985,9 +1032,60 @@
                   </div>
                 )}
 
+                {/* 탭: 수업 관리 (전체 목록 및 삭제) */}
+                {adminTab === 'class_list' && (
+                  <div className="p-6 md:p-10 flex-1 h-auto md:overflow-y-auto relative">
+                    <div className="max-w-4xl mx-auto">
+                      <div className="mb-6">
+                        <h2 className="text-xl md:text-2xl font-black text-neutral-900 dark:text-white flex items-center gap-2">
+                          <SvgIcon name="calendar" className="w-6 h-6 text-rose-500" /> 정규 수업 종합 관리
+                        </h2>
+                        <p className="text-sm text-neutral-500 mt-1">학원에 배정된 모든 정규 수업을 요일별로 조회하고 삭제할 수 있습니다.</p>
+                      </div>
+
+                      <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm p-4 md:p-6">
+                        {events.filter(e => e.type === 'class').length === 0 ? (
+                          <div className="text-center py-16 text-sm text-neutral-400 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl bg-neutral-50/50 dark:bg-neutral-900/50">배정된 정규 수업이 없습니다.</div>
+                        ) : (
+                          <div className="space-y-6">
+                            {WORKING_DAYS.map(day => {
+                              const dayClasses = events.filter(e => e.type === 'class' && e.dayOfWeek === day.value).sort((a,b) => a.startTime.localeCompare(b.startTime));
+                              if (dayClasses.length === 0) return null;
+                              return (
+                                <div key={day.value}>
+                                  <h3 className="font-black text-rose-600 dark:text-rose-400 mb-3 border-b border-neutral-100 dark:border-neutral-800 pb-2">{day.label}요일</h3>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {dayClasses.map(cls => {
+                                      const studentName = users.find(u => u.id === cls.studentId)?.name || '알수없음';
+                                      const instructorName = instructors.find(i => i.id === cls.instructorId)?.name || '미정';
+                                      return (
+                                        <div key={cls.id} className="p-4 border border-neutral-200 dark:border-neutral-700 rounded-xl flex justify-between items-center bg-neutral-50 dark:bg-neutral-850 hover:border-rose-300 dark:hover:border-rose-800/60 transition-colors">
+                                          <div>
+                                            <div className="text-sm font-black text-neutral-900 dark:text-white mb-1">{cls.startTime} ~ {cls.endTime}</div>
+                                            <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+                                              <span className="text-purple-600 dark:text-purple-400">{instructorName}T</span> / <span className="text-indigo-600 dark:text-indigo-400">{studentName} 학생</span>
+                                            </div>
+                                          </div>
+                                          <button onClick={() => handleDeleteEvent(cls.id)} className="p-2 text-red-500 bg-white dark:bg-neutral-900 border border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors shadow-sm" title="수업 삭제">
+                                            <SvgIcon name="trash" className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* 탭: 수업(강사) 시간관리 */}
                 {adminTab === 'class_manage' && (
-                  <div className="flex flex-col h-full overflow-hidden bg-neutral-50 dark:bg-neutral-950">
+                  <div className="flex flex-col h-auto md:h-full overflow-hidden bg-neutral-50 dark:bg-neutral-950">
                     <div className="flex-shrink-0 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 p-3 z-10 flex items-center gap-3 overflow-x-auto hide-scrollbar">
                       <span className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest shrink-0 ml-1">Select Instructor</span>
                       {instructors.map(inst => (
@@ -1002,9 +1100,9 @@
                       ))}
                     </div>
 
-                    <div className="flex-1 overflow-auto p-4 md:p-6 relative z-0">
+                    <div className="flex-1 h-auto md:overflow-y-auto p-4 md:p-6 relative z-0">
                       {!selectedInstructorForManage ? (
-                        <div className="h-full flex flex-col items-center justify-center text-neutral-400">
+                        <div className="h-full flex flex-col items-center justify-center text-neutral-400 py-20">
                           <SvgIcon name="grid" className="w-12 h-12 mb-3 opacity-20" />
                           <p className="font-semibold text-sm">상단에서 스케줄을 관리할 강사를 선택해주세요.</p>
                         </div>
@@ -1015,7 +1113,7 @@
                               <h3 className="text-lg md:text-xl font-black flex items-center gap-2 text-neutral-900 dark:text-white">
                                 <span className="text-amber-600 dark:text-amber-500">{instructors.find(i => i.id === selectedInstructorForManage)?.name}T 강사</span> 주간 강의 가능 시간
                               </h3>
-                              <p className="text-xs text-neutral-500 mt-1">시작 시간을 누르고 종료 시간을 누르면 사이 구간이 한 번에 선택됩니다. (하루에 여러 번 띄엄띄엄 선택도 가능합니다)</p>
+                              <p className="text-xs text-neutral-500 mt-1">시작 시간을 한 번 클릭하고, 종료 시간을 클릭하면 사이 구간이 한 번에 채워집니다.</p>
                             </div>
                           </div>
 
@@ -1027,7 +1125,7 @@
                               ))}
                             </div>
                             
-                            <div className="flex-1 overflow-y-auto">
+                            <div className="flex-1 overflow-visible">
                               {GRID_TIME_SLOTS.map((time, timeIndex) => (
                                 <div key={time} className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] border-b border-neutral-100 dark:border-neutral-800/50 last:border-b-0 hover:bg-neutral-50 dark:hover:bg-neutral-850/30 transition-colors">
                                   <div className="py-2 flex items-center justify-center border-r border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
@@ -1046,7 +1144,7 @@
                                         onClick={() => handleTimeCellClick(targetInstId, day.value, timeIndex)}
                                         className={`border-r last:border-r-0 border-neutral-100 dark:border-neutral-800/50 p-1 md:p-1.5 cursor-pointer toggle-cell flex items-center justify-center group ${isAvailable ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''} ${isAnchor ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50 dark:bg-indigo-900/40' : ''}`}
                                       >
-                                        <div className={`w-full h-full min-h-[24px] md:min-h-[28px] rounded-md border flex items-center justify-center transition-all ${isAvailable ? 'bg-emerald-500 border-emerald-600 text-white shadow-inner scale-100' : 'border-transparent text-transparent group-hover:border-neutral-200 dark:group-hover:border-neutral-700 scale-95'} ${isAnchor ? 'animate-pulse' : ''}`}>
+                                        <div className={`w-full h-full min-h-[24px] md:min-h-[30px] rounded-md border flex items-center justify-center transition-all ${isAvailable ? 'bg-emerald-500 border-emerald-600 text-white shadow-inner scale-100' : 'border-transparent text-transparent group-hover:border-neutral-200 dark:group-hover:border-neutral-700 scale-95'} ${isAnchor ? 'animate-pulse' : ''}`}>
                                           {isAvailable && <SvgIcon name="check" className="w-3 md:w-4 h-3 md:h-4" />}
                                         </div>
                                       </div>
@@ -1072,7 +1170,7 @@
                 <div className="w-full flex flex-col h-auto md:h-full">
                   <div className="p-4 flex flex-col h-auto md:flex-1 md:overflow-hidden">
                     
-                    {/* 상단 타이틀 로고 박스 삭제 */}
+                    {/* 상단 타이틀 */}
                     <div className="flex items-start justify-between gap-2.5 pb-4 shrink-0 border-b border-neutral-100 dark:border-neutral-800">
                       <div className="flex items-start gap-2.5">
                         <div className="shrink-0 mt-1 flex items-center justify-center">
@@ -1165,8 +1263,8 @@
                 </div>
               </aside>
 
-              {/* 캘린더 메인 (모바일에서는 최소 높이 확보로 찌그러짐 방지, 데스크탑은 남은 영역 채움) */}
-              <div className="flex-1 flex flex-col min-w-0 min-h-[600px] md:min-h-0 md:h-full overflow-hidden transition-all duration-300 bg-white dark:bg-neutral-900 relative z-0 shrink-0">
+              {/* 캘린더 메인 */}
+              <div className="flex-1 flex flex-col min-w-0 h-auto md:min-h-0 md:h-full overflow-visible md:overflow-hidden transition-all duration-300 bg-white dark:bg-neutral-900 relative z-0 shrink-0">
                 <header className="flex-none z-20 flex items-center justify-between px-3 md:px-6 py-3 bg-white/80 dark:bg-neutral-900/80 backdrop-blur border-b border-neutral-200 dark:border-neutral-800 relative">
                   <div className="flex items-center gap-1 md:gap-2">
                     <h2 className="text-base md:text-lg font-black tracking-tight">{year}년 {month + 1}월</h2>
@@ -1182,11 +1280,11 @@
                   </div>
                 </header>
 
-                <div className="flex-1 overflow-y-auto bg-neutral-50/30 dark:bg-neutral-950 flex flex-col relative z-0 pb-32">
-                  <div className="flex-1 flex flex-col select-none max-w-7xl mx-auto w-full p-2 md:p-6 pb-6 h-full relative z-0 min-h-full">
+                <div className="flex-1 overflow-visible md:overflow-y-auto bg-neutral-50/30 dark:bg-neutral-950 flex flex-col relative z-0 pb-32 md:pb-0">
+                  <div className="flex-1 flex flex-col select-none max-w-7xl mx-auto w-full p-2 md:p-6 h-auto md:h-full relative z-0 min-h-[600px] md:min-h-full">
                     
-                    {/* 요일 헤더 - 공간메이킹은 일요일부터 */}
-                    <div className="grid grid-cols-7 border-b border-neutral-200 dark:border-neutral-800 text-center pb-2 shrink-0">
+                    {/* 요일 헤더 */}
+                    <div className={`grid ${currentView === 'space_calendar' ? 'grid-cols-7' : 'grid-cols-6'} border-b border-neutral-200 dark:border-neutral-800 text-center pb-2 shrink-0`}>
                       {currentView === 'space_calendar' ? (
                         <>
                           <span className="text-[10px] md:text-xs font-bold tracking-wider text-red-500">일</span>
@@ -1199,13 +1297,12 @@
                           {WORKING_DAYS.map((day, idx) => (
                              <span key={day.value} className={`text-[10px] md:text-xs font-bold tracking-wider ${idx === 5 ? 'text-blue-500' : 'text-neutral-400'}`}>{day.label}</span>
                           ))}
-                          <span className="text-[10px] md:text-xs font-bold tracking-wider text-red-500">일</span>
                         </>
                       )}
                     </div>
 
-                    {/* 빈공간 꽉 채우기: minmax(75px, 1fr) 로 설정하여 남는 높이를 자동으로 배분 */}
-                    <div className="grid grid-cols-7 flex-1 border-l border-b border-neutral-100 dark:border-neutral-850/60 mt-1 relative z-0 isolate" style={{ gridTemplateRows: `repeat(${calendarCells.length / 7}, minmax(75px, 1fr))` }}>
+                    {/* 빈공간 꽉 채우기 */}
+                    <div className={`grid ${currentView === 'space_calendar' ? 'grid-cols-7' : 'grid-cols-6'} flex-1 border-l border-b border-neutral-100 dark:border-neutral-850/60 mt-1 relative z-0 isolate`} style={{ gridTemplateRows: `repeat(${calendarCells.length / (currentView === 'space_calendar' ? 7 : 6)}, minmax(80px, 1fr))` }}>
                       {calendarCells.map((cell, idx) => {
                         const cellDateObj = new Date(cell.dateStr);
                         const cellDayOfWeek = cellDateObj.getDay(); 
@@ -1524,10 +1621,10 @@
                       <div className="w-full h-full flex flex-col pb-6">
                         <div className="flex flex-col mb-4 shrink-0 gap-1">
                           <h3 className="text-lg font-black text-neutral-900 dark:text-white">나의 주간 강의 오픈 시간 설정</h3>
-                          <p className="text-xs text-neutral-500">시작 시간을 누르고 종료 시간을 누르면 사이 구간이 한 번에 선택됩니다. (하루에 여러 번 띄엄띄엄 선택도 가능합니다)</p>
+                          <p className="text-xs text-neutral-500">시작 시간을 한 번 클릭하고, 종료 시간을 클릭하면 사이 구간이 한 번에 채워집니다. (변경 시 관리자에게 알림 전송)</p>
                         </div>
 
-                        <div className="flex-1 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden flex flex-col min-h-0">
+                        <div className="flex-1 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden flex flex-col min-h-[400px]">
                           <div className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] border-b border-neutral-200 dark:border-neutral-800 bg-neutral-100/50 dark:bg-neutral-850/50 shrink-0">
                             <div className="p-2 flex items-center justify-center text-[10px] font-bold text-neutral-400 border-r border-neutral-200 dark:border-neutral-800">Time</div>
                             {WORKING_DAYS.map((day, idx) => (
@@ -1535,7 +1632,7 @@
                             ))}
                           </div>
                           
-                          <div className="flex-1 overflow-y-auto">
+                          <div className="flex-1 overflow-visible md:overflow-y-auto">
                             {GRID_TIME_SLOTS.map((time, timeIndex) => (
                               <div key={time} className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] border-b border-neutral-100 dark:border-neutral-800/50 last:border-b-0 hover:bg-neutral-50 dark:hover:bg-neutral-850/30 transition-colors">
                                 <div className="py-2 flex items-center justify-center border-r border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
@@ -1751,18 +1848,26 @@
                   
                   if (id === '메이킹' && pw === adminPw) {
                     setIsAdmin(true); setLoggedInUser(null); setIsLoginModalOpen(false);
+                    sessionStorage.setItem('mayking_isAdmin', 'true');
+                    sessionStorage.removeItem('mayking_loggedInUser');
                     showToast("🔓 관리자 모드로 접속되었습니다."); return;
                   }
 
                   const matchedInstructor = instructors.find(i => i.id === id && i.password === pw);
                   if (matchedInstructor) {
-                    setLoggedInUser({ ...matchedInstructor, role: 'instructor' }); setIsAdmin(false); setIsLoginModalOpen(false); setCurrentView('student_dashboard');
+                    const userData = { ...matchedInstructor, role: 'instructor' };
+                    setLoggedInUser(userData); setIsAdmin(false); setIsLoginModalOpen(false); setCurrentView('student_dashboard');
+                    sessionStorage.setItem('mayking_loggedInUser', JSON.stringify(userData));
+                    sessionStorage.removeItem('mayking_isAdmin');
                     showToast(`👨‍🏫 환영합니다, ${matchedInstructor.name}T 강사님!`); return;
                   }
 
                   const matchedStudent = users.find(u => u.id === id && u.password === pw);
                   if (matchedStudent) {
-                    setLoggedInUser({ ...matchedStudent, role: 'student' }); setIsAdmin(false); setIsLoginModalOpen(false); setCurrentView('student_dashboard');
+                    const userData = { ...matchedStudent, role: 'student' };
+                    setLoggedInUser(userData); setIsAdmin(false); setIsLoginModalOpen(false); setCurrentView('student_dashboard');
+                    sessionStorage.setItem('mayking_loggedInUser', JSON.stringify(userData));
+                    sessionStorage.removeItem('mayking_isAdmin');
                     showToast(`🧑‍🎓 환영합니다, ${matchedStudent.name} 학생!`); return;
                   }
                   
