@@ -122,24 +122,10 @@
       { id: 'space-1', name: '합주실 A', color: 'indigo', isActive: true },
       { id: 'space-2', name: '합주실 B', color: 'emerald', isActive: true },
     ];
-
-    const START_TIME_OPTIONS = [];
-    for(let i = 20; i <= 40; i++) {
-      const h = String(Math.floor(i / 2)).padStart(2, '0');
-      const m = i % 2 === 0 ? '00' : '30';
-      START_TIME_OPTIONS.push(`${h}:${m}`);
-    }
-
-    const END_TIME_OPTIONS = [];
-    for(let i = 22; i <= 42; i++) {
-      const h = String(Math.floor(i / 2)).padStart(2, '0');
-      const m = i % 2 === 0 ? '00' : '30';
-      END_TIME_OPTIONS.push(`${h}:${m}`);
-    }
     
-    // 타임라인을 위해 12:00 ~ 22:00 까지 생성
+    // 전체 타임라인 렌더링용 배열 (10:00 ~ 23:00)
     const GRID_TIME_SLOTS = [];
-    for(let i = 24; i <= 44; i++) {
+    for(let i = 20; i <= 46; i++) {
       const h = String(Math.floor(i / 2)).padStart(2, '0');
       const m = i % 2 === 0 ? '00' : '30';
       GRID_TIME_SLOTS.push(`${h}:${m}`);
@@ -190,8 +176,13 @@
 
       const [assignInstId, setAssignInstId] = useState('');
       const [formDateStr, setFormDateStr] = useState('');
-      const [formStartTime, setFormStartTime] = useState('12:00');
-      const [formEndTime, setFormEndTime] = useState('13:00');
+      const [formStartTime, setFormStartTime] = useState('10:00');
+      const [formEndTime, setFormEndTime] = useState('11:00');
+
+      // 드래그 선택 상태 관리
+      const [isDragging, setIsDragging] = useState(false);
+      const [dragValue, setDragValue] = useState(false);
+      const [localAvail, setLocalAvail] = useState({});
 
       useEffect(() => {
         if (!window.firebaseDb) return;
@@ -333,16 +324,38 @@
         showToast("과목이 추가되었습니다.");
       }
 
-      const toggleInstructorAvailability = (instructorId, dayValue, timeStr) => {
-        const nextInstructors = instructors.map(inst => {
-          if (inst.id === instructorId) {
-            const avail = inst.availability || {};
-            const key = `${dayValue}-${timeStr}`;
-            return { ...inst, availability: { ...avail, [key]: !avail[key] } };
+      // 선택된 강사의 로컬 스케줄 동기화
+      useEffect(() => {
+          if (selectedInstructorForManage) {
+              const inst = instructors.find(i => i.id === selectedInstructorForManage);
+              setLocalAvail(inst ? { ...inst.availability } : {});
           }
-          return inst;
-        });
-        setInstructors(nextInstructors); saveToCloud(null, null, null, null, nextInstructors, null, null);
+      }, [selectedInstructorForManage, instructors]);
+
+      const handleMouseDown = (key, currentVal) => {
+          setIsDragging(true);
+          setDragValue(!currentVal);
+          setLocalAvail(prev => ({ ...prev, [key]: !currentVal }));
+      };
+
+      const handleMouseEnter = (key) => {
+          if (isDragging) {
+              setLocalAvail(prev => ({ ...prev, [key]: dragValue }));
+          }
+      };
+
+      const handleMouseUp = () => {
+          if (isDragging) {
+              setIsDragging(false);
+              const nextInstructors = instructors.map(inst => {
+                  if (inst.id === selectedInstructorForManage) {
+                      return { ...inst, availability: localAvail };
+                  }
+                  return inst;
+              });
+              setInstructors(nextInstructors);
+              saveToCloud(null, null, null, null, nextInstructors, null, null);
+          }
       };
 
       const handleSaveEvent = (eventData) => {
@@ -393,6 +406,59 @@
         }
       }
 
+      const startOptions = useMemo(() => {
+          const opts = [];
+          if (currentView === 'space_calendar') {
+              const isSunday = formDateStr && new Date(formDateStr).getDay() === 0;
+              const startH = isSunday ? 18 : 10;
+              for (let h = startH; h <= 22; h++) {
+                  opts.push(`${String(h).padStart(2, '0')}:00`);
+              }
+          } else {
+              for (let i = 20; i <= 44; i++) { // 10:00 ~ 22:00
+                  const h = String(Math.floor(i / 2)).padStart(2, '0');
+                  const m = i % 2 === 0 ? '00' : '30';
+                  opts.push(`${h}:${m}`);
+              }
+          }
+          return opts;
+      }, [currentView, formDateStr]);
+
+      const endOptions = useMemo(() => {
+          const opts = [];
+          if (!formStartTime) return opts;
+          const [sh, sm] = formStartTime.split(':').map(Number);
+          
+          if (currentView === 'space_calendar') {
+              // 공간메이킹: 무조건 1시간 단위 (종료 23:00 제한)
+              for (let h = sh + 1; h <= 23; h++) {
+                  opts.push(`${String(h).padStart(2, '0')}:00`);
+              }
+          } else {
+              // 일반 연습실: 30분 단위 (종료 23:00 제한)
+              const sIdx = sh * 2 + (sm === 30 ? 1 : 0);
+              for (let i = sIdx + 1; i <= 46; i++) {
+                  const h = String(Math.floor(i / 2)).padStart(2, '0');
+                  const m = i % 2 === 0 ? '00' : '30';
+                  opts.push(`${h}:${m}`);
+              }
+          }
+          return opts;
+      }, [currentView, formStartTime]);
+
+      // 예약창 열 때 요일/타입에 맞지 않는 시간이면 강제 변경
+      useEffect(() => {
+          if (startOptions.length > 0 && !startOptions.includes(formStartTime)) {
+              setFormStartTime(startOptions[0]);
+          }
+      }, [startOptions, formStartTime]);
+
+      useEffect(() => {
+          if (endOptions.length > 0 && !endOptions.includes(formEndTime)) {
+              setFormEndTime(endOptions[0]);
+          }
+      }, [endOptions, formEndTime]);
+
       const filteredEvents = useMemo(() => {
         return events.filter(event => {
           if (currentView === 'calendar' && event.type === 'space_reservation') return false;
@@ -413,7 +479,7 @@
         let cells = [];
         let curr = new Date(year, month, 1);
         
-        // 공간메이킹은 일요일부터 시작(0~6), 연습실은 월요일부터 시작(1~0)
+        // 공간메이킹은 일요일(0)부터 시작, 연습실은 월요일(1)부터 시작
         if (currentView === 'space_calendar') {
           while (curr.getDay() !== 0) {
               curr.setDate(curr.getDate() - 1);
@@ -498,7 +564,6 @@
         return slots;
       }, [assignInstId, instructors]);
 
-
       return (
         <div className={`h-full w-full flex transition-colors duration-300 ${darkMode ? 'dark bg-neutral-950 text-neutral-100' : 'bg-white text-neutral-800'}`}>
           
@@ -539,7 +604,7 @@
 
               <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center py-20 px-6 max-w-4xl mx-auto">
                 <div className="text-center mb-10 md:mb-14">
-                  {/* 메인 화면 로고: 네모 틀 100% 완전 삭제 및 이미지 대폭 확대 */}
+                  {/* 로고 네모 배경 완전히 삭제 & 세로로 엄청 크게 확대 */}
                   <div className="mx-auto mb-6 inline-block">
                     <img src="./logo.png" alt="메이킹학원 로고" className="h-64 sm:h-80 md:h-[400px] w-auto object-contain transform hover:scale-105 transition-transform duration-300" />
                   </div>
@@ -601,9 +666,8 @@
             <div className="w-full h-full flex flex-col bg-neutral-50/50 dark:bg-neutral-950 overflow-y-auto">
               <header className="flex-none flex items-start justify-between px-4 py-3 md:py-4 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 shadow-sm z-10">
                 <div className="flex items-start gap-2.5">
-                  {/* 시간표 로고: 네모 틀 완전 삭제 및 크기 키움 */}
                   <div className="shrink-0 mt-1 flex items-center justify-center">
-                    <img src="./logo.png" alt="메이킹 로고" className="h-10 w-auto md:h-12 object-contain" />
+                    <img src="./logo.png" alt="메이킹 로고" className="h-14 w-auto md:h-20 object-contain" />
                   </div>
                   <div className="flex flex-col pt-1">
                     <h1 className="font-black text-[13px] md:text-sm tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-400 leading-tight">
@@ -656,11 +720,12 @@
                             </div>
                           ))}
                         </div>
-                        <div className="flex-1 bg-white dark:bg-neutral-900 relative" style={{ height: '600px' }}>
+                        <div className="flex-1 bg-white dark:bg-neutral-900 relative" style={{ height: '700px' }}>
                           {GRID_TIME_SLOTS.map((time, idx) => {
                             if (idx % 2 !== 0) return null; 
+                            const totalSlots = GRID_TIME_SLOTS.length - 1;
                             return (
-                              <div key={time} className="absolute w-full border-b border-neutral-100 dark:border-neutral-800/50 flex" style={{ top: `${(idx/2) * (600/11)}px`, height: `${600/11}px` }}>
+                              <div key={time} className="absolute w-full border-b border-neutral-100 dark:border-neutral-800/50 flex" style={{ top: `${(idx/totalSlots) * 100}%`, height: `${(2/totalSlots)*100}%` }}>
                                 <div className="w-[60px] border-r border-neutral-100 dark:border-neutral-800/50 flex justify-center pt-1">
                                   <span className="text-[9px] font-bold text-neutral-400">{time}</span>
                                 </div>
@@ -683,8 +748,9 @@
                               const eIdx = GRID_TIME_SLOTS.indexOf(ev.endTime);
                               if (sIdx === -1 || eIdx === -1) return null;
                               
-                              const topPercent = (sIdx / 22) * 100;
-                              const heightPercent = ((eIdx - sIdx) / 22) * 100;
+                              const totalSlots = GRID_TIME_SLOTS.length - 1;
+                              const topPercent = (sIdx / totalSlots) * 100;
+                              const heightPercent = ((eIdx - sIdx) / totalSlots) * 100;
                               
                               const studentName = users.find(u => u.id === ev.studentId)?.name || '알 수 없음';
                               const instructorName = instructors.find(i => i.id === ev.instructorId)?.name || '미정';
@@ -717,9 +783,8 @@
               <aside className="w-full md:w-64 flex-shrink-0 bg-white dark:bg-neutral-900 border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 flex flex-col h-auto md:h-full z-20">
                 <div className="p-4 flex-none border-b border-neutral-100 dark:border-neutral-800 pb-4">
                   <div className="flex items-start gap-2.5">
-                    {/* 데스크 로고: 네모 틀 완전 삭제 및 크기 키움 */}
                     <div className="shrink-0 mt-1 flex items-center justify-center">
-                      <img src="./logo.png" alt="메이킹 로고" className="h-10 w-auto md:h-12 object-contain" />
+                      <img src="./logo.png" alt="메이킹 로고" className="h-14 w-auto md:h-20 object-contain" />
                     </div>
                     <div className="flex flex-col pt-1">
                       <h1 className="font-black text-[13px] md:text-sm tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-400 leading-tight">
@@ -938,6 +1003,7 @@
                   </div>
                 )}
 
+                {/* 탭: 수업(강사) 시간관리 (드래그 선택 기능 포함) */}
                 {adminTab === 'class_manage' && (
                   <div className="flex flex-col h-full overflow-hidden bg-neutral-50 dark:bg-neutral-950">
                     <div className="flex-shrink-0 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 p-3 z-10 flex items-center gap-3 overflow-x-auto hide-scrollbar">
@@ -967,7 +1033,7 @@
                               <h3 className="text-lg md:text-xl font-black flex items-center gap-2 text-neutral-900 dark:text-white">
                                 <span className="text-amber-600 dark:text-amber-500">{instructors.find(i => i.id === selectedInstructorForManage)?.name}T 강사</span> 주간 강의 가능 시간
                               </h3>
-                              <p className="text-xs text-neutral-500 mt-1">셀을 클릭하여 요일별 30분 단위 수업 오픈 상태(초록색)를 ON/OFF 하세요.</p>
+                              <p className="text-xs text-neutral-500 mt-1">마우스를 꾹 누른 채로 드래그하여 여러 칸을 한 번에 스와이프 하세요.</p>
                             </div>
                           </div>
 
@@ -979,22 +1045,26 @@
                               ))}
                             </div>
                             
-                            <div className="flex-1 overflow-y-auto">
+                            <div 
+                              className="flex-1 overflow-y-auto select-none"
+                              onMouseUp={handleMouseUp}
+                              onMouseLeave={handleMouseUp}
+                            >
                               {GRID_TIME_SLOTS.map((time) => (
-                                <div key={time} className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] border-b border-neutral-100 dark:border-neutral-800/50 last:border-b-0 hover:bg-neutral-50 dark:hover:bg-neutral-850/30 transition-colors">
+                                <div key={time} className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] border-b border-neutral-100 dark:border-neutral-800/50 last:border-b-0">
                                   <div className="py-2 flex items-center justify-center border-r border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
                                     <span className="text-[9px] md:text-[10px] font-bold text-neutral-500">{time}</span>
                                   </div>
                                   {WORKING_DAYS.map((day) => {
-                                    const instData = instructors.find(i => i.id === selectedInstructorForManage);
                                     const key = `${day.value}-${time}`;
-                                    const isAvailable = instData?.availability?.[key];
+                                    const isAvailable = localAvail[key] || false;
                                     
                                     return (
                                       <div 
                                         key={key} 
-                                        onClick={() => toggleInstructorAvailability(instData.id, day.value, time)}
-                                        className={`border-r last:border-r-0 border-neutral-100 dark:border-neutral-800/50 p-1 md:p-1.5 cursor-pointer toggle-cell flex items-center justify-center group ${isAvailable ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}`}
+                                        onMouseDown={() => handleMouseDown(key, isAvailable)}
+                                        onMouseEnter={() => handleMouseEnter(key)}
+                                        className={`border-r last:border-r-0 border-neutral-100 dark:border-neutral-800/50 p-1 md:p-1.5 cursor-pointer flex items-center justify-center group ${isAvailable ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'hover:bg-neutral-50 dark:hover:bg-neutral-850/30'}`}
                                       >
                                         <div className={`w-full h-full min-h-[24px] md:min-h-[28px] rounded-md border flex items-center justify-center transition-all ${isAvailable ? 'bg-emerald-500 border-emerald-600 text-white shadow-inner scale-100' : 'border-transparent text-transparent group-hover:border-neutral-200 dark:group-hover:border-neutral-700 scale-95'}`}>
                                           {isAvailable && <SvgIcon name="check" className="w-3 md:w-4 h-3 md:h-4" />}
@@ -1023,9 +1093,8 @@
                     
                     <div className="flex items-start justify-between gap-2.5 pb-4 shrink-0 border-b border-neutral-100 dark:border-neutral-800">
                       <div className="flex items-start gap-2.5">
-                        {/* 예약 달력 로고: 네모 틀 완전 삭제 및 크기 키움 */}
                         <div className="shrink-0 mt-1 flex items-center justify-center">
-                          <img src="./logo.png" alt="메이킹 로고" className="h-12 w-auto md:h-14 object-contain" />
+                          <img src="./logo.png" alt="메이킹 로고" className="h-14 w-auto md:h-20 object-contain" />
                         </div>
                         <div className="flex flex-col pt-1">
                           <h1 className="font-black text-[13px] md:text-sm tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-400 leading-tight">
@@ -1334,14 +1403,14 @@
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-neutral-400 mb-1.5">시작 시간</label>
-                      <select name="startTime" defaultValue={formStartTime} onChange={(e) => setFormStartTime(e.target.value)} className="w-full px-3 py-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500">
-                        {START_TIME_OPTIONS.map(t => <option key={`start-${t}`} value={t}>{t}</option>)}
+                      <select name="startTime" value={formStartTime} onChange={(e) => setFormStartTime(e.target.value)} className="w-full px-3 py-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500">
+                        {startOptions.map(t => <option key={`start-${t}`} value={t}>{t}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-neutral-400 mb-1.5">종료 시간</label>
-                      <select name="endTime" defaultValue={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} className="w-full px-3 py-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500">
-                        {END_TIME_OPTIONS.map(t => <option key={`end-${t}`} value={t}>{t}</option>)}
+                      <select name="endTime" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} className="w-full px-3 py-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500">
+                        {endOptions.map(t => <option key={`end-${t}`} value={t}>{t}</option>)}
                       </select>
                     </div>
                   </div>
