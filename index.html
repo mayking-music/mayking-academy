@@ -1,4 +1,600 @@
-<!-- ... existing code ... -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>메이킹 실용음악학원 - 통합 시스템</title>
+  
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDQN-vHB0F5Gy6kYPvBPAUhnnuEWDkvZ8k",
+      authDomain: "mayking-0011.firebaseapp.com",
+      projectId: "mayking-0011",
+      storageBucket: "mayking-0011.firebasestorage.app",
+      messagingSenderId: "873300456108",
+      appId: "1:873300456108:web:1068ef5e42451a795ea509"
+    };
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      window.firebaseDb = db;
+      window.firebaseDoc = doc;
+      window.firebaseOnSnapshot = onSnapshot;
+      window.firebaseSetDoc = setDoc;
+      console.log("🔥 파이어베이스 클라우드 연결 준비 완료!");
+    } catch (error) {
+      console.error("파이어베이스 연결 실패. Config 값을 확인하세요:", error);
+    }
+  </script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: { neutral: { 850: '#202020', 950: '#0a0a0a' } }
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+    body { font-family: 'Inter', 'Noto Sans KR', sans-serif; user-select: none; -webkit-user-select: none; overflow: hidden; height: 100vh; width: 100vw; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.2); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.45); }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    .toggle-cell { transition: all 0.2s ease-in-out; }
+    .toggle-cell:active { transform: scale(0.9); }
+  </style>
+</head>
+<body class="bg-white dark:bg-neutral-950 text-neutral-800 dark:text-neutral-100 h-screen w-screen overflow-hidden">
+
+  <div id="root" class="h-full w-full"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    const COLOR_PALETTES = [
+      { id: 'indigo', label: '인디고', bg: 'bg-indigo-100 dark:bg-indigo-950/40', text: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-200 dark:border-indigo-800/60', hex: '#6366F1' },
+      { id: 'pink', label: '핑크', bg: 'bg-pink-100 dark:bg-pink-950/40', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-200 dark:border-pink-800/60', hex: '#EC4899' },
+      { id: 'emerald', label: '에메랄드', bg: 'bg-emerald-100 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800/60', hex: '#10B981' },
+      { id: 'amber', label: '앰버', bg: 'bg-amber-100 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800/60', hex: '#F59E0B' },
+      { id: 'sky', label: '스카이', bg: 'bg-sky-100 dark:bg-sky-950/40', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-200 dark:border-sky-800/60', hex: '#0EA5E9' },
+      { id: 'purple', label: '퍼플', bg: 'bg-purple-100 dark:bg-purple-950/40', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-800/60', hex: '#A855F7' },
+      { id: 'rose', label: '로즈', bg: 'bg-rose-100 dark:bg-rose-950/40', text: 'text-rose-700 dark:text-rose-300', border: 'border-rose-200 dark:border-rose-800/60', hex: '#F43F5E' },
+      { id: 'slate', label: '슬레이트', bg: 'bg-slate-100 dark:bg-slate-950/40', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-200 dark:border-slate-800/60', hex: '#64748B' },
+    ];
+
+    const SvgIcon = ({ name, className = "w-4 h-4" }) => {
+      const icons = {
+        left: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="15 18 9 12 15 6"></polyline></svg>,
+        right: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="9 18 15 12 9 6"></polyline></svg>,
+        plus: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+        search: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
+        trash: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>,
+        moon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>,
+        sun: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>,
+        close: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>,
+        settings: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>,
+        info: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>,
+        menu: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>,
+        users: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>,
+        logout: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>,
+        music: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>,
+        calendar: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
+        instructor: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 14l9-5-9-5-9 5 9 5z"></path><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"></path><path d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"></path></svg>,
+        grid: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>,
+        clock: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
+        check: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="20 6 9 17 4 12"></polyline></svg>,
+        speaker: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><circle cx="12" cy="14" r="4"></circle><line x1="12" y1="6" x2="12.01" y2="6"></line></svg>
+      };
+      return icons[name] || null;
+    };
+
+    const INITIAL_ROOMS = [
+      { id: 'room-2', name: '2번방', color: 'pink', isActive: true },
+      { id: 'room-3', name: '3번방', color: 'emerald', isActive: true },
+      { id: 'room-5', name: '5번방', color: 'amber', isActive: true },
+      { id: 'room-6', name: '6번방', color: 'sky', isActive: true },
+      { id: 'room-7', name: '7번방', color: 'purple', isActive: true },
+      { id: 'room-8', name: '8번방', color: 'rose', isActive: true },
+      { id: 'room-9', name: '9번방', color: 'slate', isActive: true },
+    ];
+
+    const INITIAL_SPACE_ROOMS = [
+      { id: 'space-1', name: '합주실 A', color: 'indigo', isActive: true },
+      { id: 'space-2', name: '합주실 B', color: 'emerald', isActive: true },
+    ];
+
+    const START_TIME_OPTIONS = [];
+    for(let i = 20; i <= 40; i++) {
+      const h = String(Math.floor(i / 2)).padStart(2, '0');
+      const m = i % 2 === 0 ? '00' : '30';
+      START_TIME_OPTIONS.push(`${h}:${m}`);
+    }
+
+    const END_TIME_OPTIONS = [];
+    for(let i = 22; i <= 42; i++) {
+      const h = String(Math.floor(i / 2)).padStart(2, '0');
+      const m = i % 2 === 0 ? '00' : '30';
+      END_TIME_OPTIONS.push(`${h}:${m}`);
+    }
+    
+    const GRID_TIME_SLOTS = [];
+    for(let i = 20; i <= 41; i++) {
+      const h = String(Math.floor(i / 2)).padStart(2, '0');
+      const m = i % 2 === 0 ? '00' : '30';
+      GRID_TIME_SLOTS.push(`${h}:${m}`);
+    }
+
+    const WORKING_DAYS = [
+      { label: '월', value: 1 }, { label: '화', value: 2 }, { label: '수', value: 3 },
+      { label: '목', value: 4 }, { label: '금', value: 5 }, { label: '토', value: 6 }
+    ];
+
+    const DEFAULT_INSTRUCTOR_CATEGORIES = ['보컬', '드럼', '피아노', '피아노/작곡/미디', '베이스/녹음/미디', '베이스/어쿠스틱/기타', '어쿠스틱/일렉기타'];
+
+    function App() {
+      const [currentDate, setCurrentDate] = useState(new Date());
+      const [rooms, setRooms] = useState(INITIAL_ROOMS);
+      const [spaceRooms, setSpaceRooms] = useState(INITIAL_SPACE_ROOMS);
+      const [events, setEvents] = useState([]); 
+      const [users, setUsers] = useState([]); 
+      const [instructors, setInstructors] = useState([]); 
+      const [categories, setCategories] = useState(DEFAULT_INSTRUCTOR_CATEGORIES); 
+      
+      const [selectedRooms, setSelectedRooms] = useState(() => new Set(['all', ...INITIAL_ROOMS.map(r => r.id)]));
+      const [searchQuery, setSearchQuery] = useState('');
+      const [darkMode, setDarkMode] = useState(false);
+      const [notice, setNotice] = useState(''); 
+      
+      const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
+      const [toastMessage, setToastMessage] = useState(null);
+      const [currentView, setCurrentView] = useState('landing'); 
+
+      const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+      const [isAdmin, setIsAdmin] = useState(false);
+      const [loggedInUser, setLoggedInUser] = useState(null);
+
+      const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+      const [selectedEvent, setSelectedEvent] = useState(null);
+      const [selectedDay, setSelectedDay] = useState(null);
+      const [isDayListModalOpen, setIsDayListModalOpen] = useState(false);
+      const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
+      
+      const [adminTab, setAdminTab] = useState('students'); 
+      const [adminListMode, setAdminListMode] = useState('list');
+      const [selectedInstructorForManage, setSelectedInstructorForManage] = useState(null);
+      const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+      
+      const [selectedAccountForEdit, setSelectedAccountForEdit] = useState(null);
+      const [accountDeleteConfirm, setAccountDeleteConfirm] = useState(false);
+
+      const [assignInstId, setAssignInstId] = useState('');
+      const [formDateStr, setFormDateStr] = useState('');
+      const [formStartTime, setFormStartTime] = useState('10:00');
+      const [formEndTime, setFormEndTime] = useState('11:00');
+
+      useEffect(() => {
+        if (!window.firebaseDb) return;
+        const docRef = window.firebaseDoc(window.firebaseDb, "wm_calendar", "making_academy_data");
+        const unsubscribe = window.firebaseOnSnapshot(docRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.events) setEvents(data.events);
+            if (data.users) setUsers(data.users);
+            if (data.instructors) setInstructors(data.instructors.map(i => ({...i, availability: i.availability || {}})));
+            if (data.categories) setCategories(data.categories);
+            if (data.notice !== undefined) setNotice(data.notice);
+            if (data.spaceRooms) setSpaceRooms(data.spaceRooms);
+            if (data.rooms) {
+              const filteredRooms = data.rooms.filter(r => r.id !== 'room-1');
+              setRooms(filteredRooms);
+              setSelectedRooms(prev => {
+                const next = new Set(prev);
+                if (next.has('all')) {
+                  filteredRooms.forEach(r => { if(r.isActive !== false) next.add(r.id); });
+                }
+                next.delete('room-1'); 
+                return next;
+              });
+            }
+          } else {
+            window.firebaseSetDoc(docRef, { events: [], rooms: INITIAL_ROOMS, spaceRooms: INITIAL_SPACE_ROOMS, users: [], instructors: [], categories: DEFAULT_INSTRUCTOR_CATEGORIES, notice: '' });
+          }
+        }, (error) => console.error(error));
+        return () => unsubscribe();
+      }, []);
+
+      // 데이터 증발 영구 방지용 Payload Save 함수
+      const saveToCloud = async (newEvents, newRooms, newUsers, newNotice, newInstructors, newCategories, newSpaceRooms) => {
+        if (!window.firebaseDb) return;
+        try {
+          const docRef = window.firebaseDoc(window.firebaseDb, "wm_calendar", "making_academy_data");
+          const payload = {};
+          
+          if (newEvents !== null && newEvents !== undefined) payload.events = newEvents;
+          if (newRooms !== null && newRooms !== undefined) payload.rooms = newRooms;
+          if (newUsers !== null && newUsers !== undefined) payload.users = newUsers;
+          if (newNotice !== null && newNotice !== undefined) payload.notice = newNotice;
+          if (newInstructors !== null && newInstructors !== undefined) payload.instructors = newInstructors;
+          if (newCategories !== null && newCategories !== undefined) payload.categories = newCategories;
+          if (newSpaceRooms !== null && newSpaceRooms !== undefined) payload.spaceRooms = newSpaceRooms;
+          
+          await window.firebaseSetDoc(docRef, payload, { merge: true });
+        } catch (e) { 
+          showToast("⚠️ 서버 저장에 실패했습니다."); 
+        }
+      };
+
+      const activeRooms = useMemo(() => rooms.filter(r => r.isActive !== false), [rooms]);
+      const activeSpaceRooms = useMemo(() => spaceRooms.filter(r => r.isActive !== false), [spaceRooms]);
+
+      useEffect(() => {
+        if (darkMode) document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+      }, [darkMode]);
+
+      // 브라우저 뒤로가기(스와이프) 제어
+      useEffect(() => {
+        window.history.replaceState({ view: 'landing' }, '', '');
+        const handlePopState = (event) => {
+          if (event.state && event.state.view) {
+            setCurrentView(event.state.view);
+          } else {
+            setCurrentView('landing');
+          }
+        };
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+      }, []);
+
+      const navigateTo = (view) => {
+        window.history.pushState({ view }, '', '');
+        setCurrentView(view);
+      };
+
+      const showToast = (msg) => { setToastMessage(msg); setTimeout(() => setToastMessage(null), 3500); };
+
+      const handleLogout = () => {
+        setIsAdmin(false); setLoggedInUser(null); navigateTo('landing');
+        showToast("안전하게 로그아웃 되었습니다.");
+      };
+
+      const handleSaveNotice = (newNotice) => {
+        setNotice(newNotice); saveToCloud(null, null, null, newNotice, null, null, null);
+      };
+
+      const handleSaveAccount = (accountData, role) => {
+        if (role === 'student') {
+          if (users.some(u => u.id === accountData.id)) return showToast("⚠️ 이미 존재하는 아이디입니다.");
+          const nextUsers = [...users, accountData];
+          setUsers(nextUsers); saveToCloud(null, null, nextUsers, null, null, null, null);
+          showToast("원생 계정이 생성되었습니다.");
+        } else {
+          if (instructors.some(u => u.id === accountData.id)) return showToast("⚠️ 이미 존재하는 아이디입니다.");
+          const newInstructor = { ...accountData, availability: {} };
+          const nextInstructors = [...instructors, newInstructor];
+          setInstructors(nextInstructors); saveToCloud(null, null, null, null, nextInstructors, null, null);
+          showToast("강사 계정이 생성되었습니다.");
+        }
+        setAdminListMode('list');
+      };
+
+      const handleUpdateAccount = (id, updatedData, role) => {
+        if (role === 'student') {
+          const nextUsers = users.map(u => u.id === id ? { ...u, ...updatedData } : u);
+          setUsers(nextUsers); saveToCloud(null, null, nextUsers, null, null, null, null);
+        } else {
+          const nextInst = instructors.map(i => i.id === id ? { ...i, ...updatedData } : i);
+          setInstructors(nextInst); saveToCloud(null, null, null, null, nextInst, null, null);
+        }
+        showToast("계정 정보가 업데이트 되었습니다.");
+        setSelectedAccountForEdit(null);
+        setAccountDeleteConfirm(false);
+      };
+
+      const handleDeleteAccount = (id, role) => {
+        if (role === 'student') {
+          const nextUsers = users.filter(u => u.id !== id);
+          setUsers(nextUsers); saveToCloud(null, null, nextUsers, null, null, null, null);
+          showToast("계정이 삭제되었습니다.");
+        } else {
+          const nextInstructors = instructors.filter(u => u.id !== id);
+          setInstructors(nextInstructors); saveToCloud(null, null, null, null, nextInstructors, null, null);
+          showToast("계정이 삭제되었습니다.");
+        }
+        setSelectedAccountForEdit(null);
+        setAccountDeleteConfirm(false);
+      };
+
+      const handleAddCategory = (newCategory) => {
+        if(categories.includes(newCategory)) return showToast("⚠️ 이미 존재하는 과목입니다.");
+        const nextCats = [...categories, newCategory];
+        setCategories(nextCats); saveToCloud(null, null, null, null, null, nextCats, null);
+        showToast("과목이 추가되었습니다.");
+      }
+
+      const toggleInstructorAvailability = (instructorId, dayValue, timeStr) => {
+        const nextInstructors = instructors.map(inst => {
+          if (inst.id === instructorId) {
+            const avail = inst.availability || {};
+            const key = `${dayValue}-${timeStr}`;
+            return { ...inst, availability: { ...avail, [key]: !avail[key] } };
+          }
+          return inst;
+        });
+        setInstructors(nextInstructors); saveToCloud(null, null, null, null, nextInstructors, null, null);
+      };
+
+      const handleSaveEvent = (eventData) => {
+        if (eventData.startTime >= eventData.endTime) return showToast("⚠️ 종료 시간은 시작 시간보다 늦어야 합니다.");
+        
+        const hasConflict = events.some(ev => {
+          if (ev.roomId !== eventData.roomId) return false;
+          if (selectedEvent && ev.id === selectedEvent.id) return false;
+          
+          let dateOverlap = false;
+          if(ev.type === 'class' && eventData.type === 'class') dateOverlap = ev.dayOfWeek === eventData.dayOfWeek;
+          else if(ev.type !== 'class' && eventData.type !== 'class') dateOverlap = ev.date === eventData.date;
+          else if(ev.type === 'class' && eventData.type !== 'class') dateOverlap = ev.dayOfWeek === new Date(eventData.date).getDay();
+          else if(ev.type !== 'class' && eventData.type === 'class') dateOverlap = new Date(ev.date).getDay() === eventData.dayOfWeek;
+
+          if(!dateOverlap) return false;
+          return ev.startTime < eventData.endTime && ev.endTime > eventData.startTime;
+        });
+
+        if (hasConflict) return showToast("⚠️ 해당 시간에 이미 수업이나 예약이 존재합니다.");
+
+        let nextEvents;
+        if (selectedEvent && selectedEvent.id) {
+          nextEvents = events.map(ev => ev.id === selectedEvent.id ? { ...ev, ...eventData } : ev);
+          showToast("📝 일정이 성공적으로 수정되었습니다.");
+        } else {
+          const newEvent = { ...eventData, id: `evt-${Date.now()}` };
+          nextEvents = [...events, newEvent];
+          showToast("📅 새 일정이 등록되었습니다.");
+        }
+        setEvents(nextEvents); saveToCloud(nextEvents, null, null, null, null, null, null);
+        setIsEventModalOpen(false); setSelectedEvent(null);
+      };
+
+      const handleDeleteEvent = (id) => {
+        const nextEvents = events.filter(ev => ev.id !== id);
+        setEvents(nextEvents); saveToCloud(nextEvents, null, null, null, null, null, null);
+        showToast("🗑️ 취소 및 삭제가 완료되었습니다."); setIsEventModalOpen(false); setSelectedEvent(null);
+      };
+
+      const toggleRoomActive = (roomId, isSpace = false) => {
+        if (isSpace) {
+          const nextSpaces = spaceRooms.map(r => r.id === roomId ? {...r, isActive: r.isActive === false ? true : false} : r);
+          setSpaceRooms(nextSpaces); saveToCloud(null, null, null, null, null, null, nextSpaces);
+        } else {
+          const nextRooms = rooms.map(r => r.id === roomId ? {...r, isActive: r.isActive === false ? true : false} : r);
+          setRooms(nextRooms); saveToCloud(null, nextRooms, null, null, null, null, null);
+        }
+      }
+
+      const filteredEvents = useMemo(() => {
+        return events.filter(event => {
+          if (currentView === 'calendar' && event.type === 'space_reservation') return false;
+          if (currentView === 'space_calendar' && event.type !== 'space_reservation') return false;
+
+          const searchMatch = searchQuery.trim() === '' || event.title.toLowerCase().includes(searchQuery.toLowerCase()) || (event.desc && event.desc.toLowerCase().includes(searchQuery.toLowerCase()));
+          return searchMatch; 
+        });
+      }, [events, currentView, searchQuery]);
+
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const handlePrevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+      const handleNextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+      const handleToday = () => setCurrentDate(new Date());
+
+      const calendarCells = useMemo(() => {
+        let cells = [];
+        let curr = new Date(year, month, 1);
+        
+        // 공간메이킹은 일요일부터 시작(0~6), 연습실은 월요일부터 시작(1~0)
+        if (currentView === 'space_calendar') {
+          while (curr.getDay() !== 0) {
+              curr.setDate(curr.getDate() - 1);
+          }
+          while (true) {
+              const y = curr.getFullYear();
+              const m = curr.getMonth();
+              const d = curr.getDate();
+              const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+              cells.push({
+                  dateStr, day: d, isCurrentMonth: m === month, 
+                  isToday: y === new Date().getFullYear() && m === new Date().getMonth() && d === new Date().getDate(),
+                  dayOfWeek: curr.getDay()
+              });
+              curr.setDate(curr.getDate() + 1);
+              if (curr.getMonth() !== month && curr.getFullYear() >= year && curr.getDay() === 0) break;
+          }
+        } else {
+          while (curr.getDay() !== 1) {
+              curr.setDate(curr.getDate() - 1);
+          }
+          while (true) {
+              if (curr.getDay() !== 0) { 
+                  const y = curr.getFullYear();
+                  const m = curr.getMonth();
+                  const d = curr.getDate();
+                  const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                  cells.push({
+                      dateStr, day: d, isCurrentMonth: m === month, 
+                      isToday: y === new Date().getFullYear() && m === new Date().getMonth() && d === new Date().getDate(),
+                      dayOfWeek: curr.getDay()
+                  });
+              }
+              curr.setDate(curr.getDate() + 1);
+              if (curr.getMonth() !== month && curr.getFullYear() >= year && curr.getDay() === 1) break;
+          }
+        }
+        return cells;
+      }, [year, month, currentView]);
+
+      const sortedEventsForCalendar = useMemo(() => {
+        return [...filteredEvents].sort((a, b) => {
+           return (a.startTime || '').localeCompare(b.startTime || '');
+        });
+      }, [filteredEvents]);
+
+      const todayStr = useMemo(() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }, [currentDate]);
+
+      const todayEvents = useMemo(() => {
+        const todayDayOfWeek = new Date().getDay();
+        return events.filter(ev => {
+          if (ev.type === 'space_reservation') return currentView === 'space_calendar' && ev.date === todayStr;
+          if (currentView === 'space_calendar') return false; 
+          if (ev.type === 'class') return ev.dayOfWeek === todayDayOfWeek;
+          return ev.date === todayStr;
+        }).sort((a,b) => (a.startTime || '').localeCompare(b.startTime || ''))
+      }, [events, todayStr, currentView]);
+
+      const getRoomColorInfo = (roomId, isSpace = false) => {
+        const targetRooms = isSpace ? spaceRooms : rooms;
+        const room = targetRooms.find(r => r.id === roomId);
+        if (!room) return { bg: 'bg-neutral-100', text: 'text-neutral-800', border: 'border-neutral-200', hex: '#6B7280' };
+        return COLOR_PALETTES.find(p => p.id === room.color) || COLOR_PALETTES[0];
+      };
+
+      const availableTimesForAssign = useMemo(() => {
+        if (!assignInstId) return [];
+        const inst = instructors.find(i => i.id === assignInstId);
+        if (!inst || !inst.availability) return [];
+        
+        const slots = [];
+        WORKING_DAYS.forEach(day => {
+          GRID_TIME_SLOTS.forEach(time => {
+            if (inst.availability[`${day.value}-${time}`]) {
+              slots.push({ val: `${day.value}-${time}`, label: `${day.label}요일 ${time} 시작` });
+            }
+          });
+        });
+        return slots;
+      }, [assignInstId, instructors]);
+
+
+      return (
+        <div className={`h-full w-full flex transition-colors duration-300 ${darkMode ? 'dark bg-neutral-950 text-neutral-100' : 'bg-white text-neutral-800'}`}>
+          
+          {toastMessage && (
+            <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-neutral-900/95 dark:bg-neutral-100 text-white dark:text-neutral-900 text-xs font-semibold px-4 py-3.5 rounded-xl shadow-2xl flex items-center gap-2 border border-neutral-800 dark:border-neutral-200 transition-all max-w-[90%] text-center" style={{ zIndex: 99999 }}>
+              <SvgIcon name="info" className="w-4 h-4 text-indigo-400 dark:text-indigo-600 flex-shrink-0" />
+              <span>{toastMessage}</span>
+            </div>
+          )}
+
+          {currentView === 'landing' ? (
+            <div className="w-full h-full overflow-y-auto bg-white dark:bg-neutral-950 relative">
+              <div className="absolute top-6 right-6 flex items-center gap-3 z-20">
+                {loggedInUser ? (
+                  <div className="flex items-center gap-3">
+                    <span className={`text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-1.5 ${loggedInUser.role === 'instructor' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:border-purple-800/60 dark:text-purple-300' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800/60 dark:text-emerald-300'}`}>
+                      <SvgIcon name={loggedInUser.role === 'instructor' ? 'instructor' : 'users'} className="w-4 h-4" />
+                      {loggedInUser.name}{loggedInUser.role === 'instructor' ? 'T' : ''}님 ({loggedInUser.role === 'instructor' ? '강사' : '원생'})
+                    </span>
+                    <button onClick={handleLogout} className="px-3 md:px-4 py-1.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 text-[10px] md:text-xs font-bold shadow-sm hover:scale-105 active:scale-95 transition-all">로그아웃</button>
+                  </div>
+                ) : isAdmin ? (
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] md:text-xs font-bold bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:border-indigo-800/60 dark:text-indigo-300 px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-1.5">
+                      <SvgIcon name="settings" className="w-4 h-4" /> 메이킹님 (관리자)
+                    </span>
+                    <button onClick={handleLogout} className="px-3 md:px-4 py-1.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 text-[10px] md:text-xs font-bold shadow-sm hover:scale-105 active:scale-95 transition-all">로그아웃</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setIsLoginModalOpen(true)} className="px-4 md:px-6 py-2 md:py-2.5 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-[10px] md:text-xs font-bold shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+                    <SvgIcon name="users" className="w-4 h-4" /> 시스템 로그인
+                  </button>
+                )}
+                <button onClick={() => setDarkMode(!darkMode)} className="p-2 md:p-2.5 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 shadow-sm hover:scale-105 active:scale-95 transition-all">
+                  {darkMode ? <SvgIcon name="sun" className="w-4 h-4" /> : <SvgIcon name="moon" className="w-4 h-4" />}
+                </button>
+              </div>
+
+              <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center py-20 px-6 max-w-4xl mx-auto">
+                <div className="text-center mb-10 md:mb-14">
+                  <div className="mx-auto mb-8 p-4 bg-white rounded-[2rem] md:rounded-[3rem] inline-block shadow-sm md:shadow-md transform hover:scale-105 transition-transform duration-300">
+                    <img src="./logo.png" alt="메이킹학원 로고" className="h-32 md:h-56 w-auto object-contain" />
+                  </div>
+                  
+                  <h1 className="font-black text-4xl md:text-5xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-400 leading-tight mb-3">
+                    메이킹(M.A.Y.KING)<br className="block sm:hidden" /> 실용음악학원
+                  </h1>
+                  <p className="text-neutral-500 dark:text-neutral-400 font-bold tracking-[0.25em] uppercase text-sm">통합 시스템</p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row flex-wrap justify-center items-stretch gap-4 w-full max-w-3xl mb-6">
+                  <div onClick={() => navigateTo('calendar')} className="flex-1 min-w-[240px] max-w-[280px] mx-auto sm:mx-0 group flex flex-col items-center justify-center p-6 bg-white dark:bg-neutral-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-lg hover:shadow-xl hover:border-indigo-500 dark:hover:border-indigo-400 cursor-pointer transition-all transform hover:-translate-y-1">
+                    <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <SvgIcon name="calendar" className="w-7 h-7" />
+                    </div>
+                    <h2 className="text-lg font-bold text-neutral-800 dark:text-white mb-1.5">연습실 예약</h2>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center leading-relaxed">개인 연습실 사용 일정<br/>조회 및 일회성 예약</p>
+                  </div>
+
+                  {isAdmin && (
+                    <div onClick={() => navigateTo('space_calendar')} className="flex-1 min-w-[240px] max-w-[280px] mx-auto sm:mx-0 group flex flex-col items-center justify-center p-6 bg-white dark:bg-neutral-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-lg hover:shadow-xl hover:border-purple-500 dark:hover:border-purple-400 cursor-pointer transition-all transform hover:-translate-y-1">
+                      <div className="w-14 h-14 rounded-2xl bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <SvgIcon name="speaker" className="w-7 h-7" />
+                      </div>
+                      <h2 className="text-lg font-bold text-neutral-800 dark:text-white mb-1.5">공간메이킹</h2>
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center leading-relaxed">합주실 및 대여 공간<br/>사용 일정 예약</p>
+                    </div>
+                  )}
+
+                  <div onClick={() => { if (isAdmin || loggedInUser) navigateTo('student_dashboard'); else setIsLoginModalOpen(true); }} className="flex-1 min-w-[240px] max-w-[280px] mx-auto sm:mx-0 group flex flex-col items-center justify-center p-6 bg-white dark:bg-neutral-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-lg hover:shadow-xl hover:border-emerald-500 dark:hover:border-emerald-400 cursor-pointer transition-all transform hover:-translate-y-1">
+                    <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <SvgIcon name="clock" className="w-7 h-7" />
+                    </div>
+                    <h2 className="text-lg font-bold text-neutral-800 dark:text-white mb-1.5">
+                      {isAdmin ? "전체 수업시간표" : loggedInUser?.role === 'instructor' ? "나의 강의시간표" : "나의 수업시간표"}
+                    </h2>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center leading-relaxed">
+                      {isAdmin ? "모든 정규 수업 열람" : "배정된 정규 수업 확인"}
+                    </p>
+                  </div>
+                </div>
+
+                {isAdmin && (
+                  <div onClick={() => { navigateTo('admin_dashboard'); setAdminTab('students'); setAdminListMode('list'); }} className="w-full max-w-3xl bg-gradient-to-r from-neutral-900 to-neutral-800 dark:from-neutral-800 dark:to-neutral-700 text-white rounded-3xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all transform hover:-translate-y-1 flex flex-col sm:flex-row items-center justify-between border border-neutral-700 dark:border-neutral-600">
+                    <div className="flex items-center gap-5 mb-4 sm:mb-0">
+                      <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center text-white backdrop-blur-sm"><SvgIcon name="grid" className="w-7 h-7" /></div>
+                      <div className="text-center sm:text-left">
+                        <h2 className="text-lg font-black tracking-tight mb-1">학원 관리 데스크 입장</h2>
+                        <p className="text-xs text-neutral-300 font-medium">원생/강사 관리, 수업 배정 및 강사 스케줄을 총괄합니다.</p>
+                      </div>
+                    </div>
+                    <div className="px-5 py-2.5 rounded-full bg-white text-neutral-900 text-xs font-bold shrink-0 shadow-sm flex items-center justify-center gap-1">관리 입장 <SvgIcon name="right" className="w-4 h-4" /></div>
+                  </div>
+                )}
+              </div>
+            </div>
+
           ) : currentView === 'student_dashboard' ? (
             <div className="w-full h-full flex flex-col bg-neutral-50/50 dark:bg-neutral-950 overflow-y-auto">
               <header className="flex-none flex items-start justify-between px-4 py-3 md:py-4 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 shadow-sm z-10">
@@ -19,12 +615,100 @@
                   </div>
                 </div>
                 <div className="flex items-center gap-3 mt-1">
-<!-- ... existing code ... -->
-```
+                  <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors">
+                    {darkMode ? <SvgIcon name="sun" className="w-4 h-4" /> : <SvgIcon name="moon" className="w-4 h-4" />}
+                  </button>
+                  <span className={`text-[10px] md:text-xs font-bold bg-neutral-50 dark:bg-neutral-900/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 border ${isAdmin ? 'text-indigo-600 border-indigo-200 dark:border-indigo-800' : loggedInUser?.role === 'instructor' ? 'text-purple-600 border-purple-200 dark:border-purple-800' : 'text-emerald-600 border-emerald-200 dark:border-emerald-800'}`}>
+                    <SvgIcon name="users" className="w-4 h-4" /> {isAdmin ? "메이킹 관리자" : `${loggedInUser?.name}${loggedInUser?.role === 'instructor' ? 'T' : ''}님`}
+                  </span>
+                </div>
+              </header>
 
-### 2. '학원 관리 데스크' 화면 상단 로고 추가
-```html:메이킹 실용음악학원 통합 시스템:making_calendar.html
-<!-- ... existing code ... -->
+              <div className="flex-1 p-4 md:p-8">
+                <div className="max-w-4xl mx-auto space-y-6">
+                  {notice && (
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-5 shadow-sm">
+                      <h3 className="text-amber-800 dark:text-amber-400 font-black text-sm mb-2 flex items-center gap-2">
+                        <span className="text-lg">📢</span> 학원 안내사항
+                      </h3>
+                      <p className="text-amber-700 dark:text-amber-300 text-sm whitespace-pre-wrap leading-relaxed">{notice}</p>
+                    </div>
+                  )}
+
+                  <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden p-4 md:p-6 mt-4">
+                    <div className="mb-4 flex items-center justify-between">
+                      <h2 className="font-bold text-lg text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+                        <SvgIcon name="calendar" className="w-5 h-5 text-emerald-600" />
+                        주간 시간표 조회
+                      </h2>
+                    </div>
+                    
+                    <div className="overflow-x-auto pb-4">
+                      <div className="min-w-[700px] border border-neutral-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-neutral-900 shadow-sm overflow-hidden flex flex-col">
+                        <div className="grid grid-cols-[60px_repeat(6,1fr)] bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-100 dark:border-emerald-800/50">
+                          <div className="p-3 border-r border-emerald-100 dark:border-emerald-800/50 flex items-center justify-center font-black text-[10px] text-emerald-700 dark:text-emerald-400">TIME</div>
+                          {WORKING_DAYS.map(day => (
+                            <div key={day.value} className="p-3 text-center border-r last:border-r-0 border-emerald-100 dark:border-emerald-800/50 font-black text-xs text-emerald-800 dark:text-emerald-300">
+                              {day.label}요일
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex-1 bg-white dark:bg-neutral-900 relative" style={{ height: '600px' }}>
+                          {GRID_TIME_SLOTS.map((time, idx) => {
+                            if (idx % 2 !== 0) return null; 
+                            return (
+                              <div key={time} className="absolute w-full border-b border-neutral-100 dark:border-neutral-800/50 flex" style={{ top: `${(idx/2) * (600/11)}px`, height: `${600/11}px` }}>
+                                <div className="w-[60px] border-r border-neutral-100 dark:border-neutral-800/50 flex justify-center pt-1">
+                                  <span className="text-[9px] font-bold text-neutral-400">{time}</span>
+                                </div>
+                                <div className="flex-1 grid grid-cols-6">
+                                  {[1,2,3,4,5,6].map(d => (
+                                    <div key={d} className="border-r last:border-r-0 border-neutral-100 dark:border-neutral-800/30"></div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          })}
+                          
+                          {events.filter(ev => {
+                              if (ev.type !== 'class') return false;
+                              if (isAdmin) return true;
+                              if (loggedInUser?.role === 'instructor') return ev.instructorId === loggedInUser.id;
+                              return ev.studentId === loggedInUser?.id;
+                          }).map(ev => {
+                              const sIdx = GRID_TIME_SLOTS.indexOf(ev.startTime);
+                              const eIdx = GRID_TIME_SLOTS.indexOf(ev.endTime);
+                              if (sIdx === -1 || eIdx === -1) return null;
+                              
+                              const topPercent = (sIdx / 22) * 100;
+                              const heightPercent = ((eIdx - sIdx) / 22) * 100;
+                              
+                              const studentName = users.find(u => u.id === ev.studentId)?.name || '알 수 없음';
+                              const instructorName = instructors.find(i => i.id === ev.instructorId)?.name || '미정';
+                              const displayTitle = isAdmin ? `${instructorName}T / ${studentName}` : loggedInUser?.role === 'instructor' ? `${studentName} 학생` : `${instructorName}T`;
+
+                              return (
+                                <div key={ev.id} className="absolute p-1" style={{
+                                  top: `${topPercent}%`,
+                                  height: `${heightPercent}%`,
+                                  left: `calc(60px + ((100% - 60px) / 6) * ${ev.dayOfWeek - 1})`,
+                                  width: `calc((100% - 60px) / 6)`
+                                }}>
+                                  <div className="w-full h-full bg-emerald-100/90 dark:bg-emerald-900/60 border-l-4 border-emerald-500 rounded p-1.5 md:p-2 shadow-sm overflow-hidden flex flex-col hover:opacity-80 cursor-pointer transition-opacity" title={`${ev.startTime}~${ev.endTime} / ${displayTitle}`}>
+                                    <span className="text-[9px] md:text-[10px] font-black text-emerald-800 dark:text-emerald-300">{ev.startTime}</span>
+                                    <span className="text-[10px] md:text-[11px] font-bold text-emerald-900 dark:text-emerald-200 mt-0.5 leading-tight tracking-tight">{displayTitle}</span>
+                                  </div>
+                                </div>
+                              )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           ) : currentView === 'admin_dashboard' && isAdmin ? (
             <div className="flex flex-col md:flex-row h-full w-full overflow-y-auto md:overflow-hidden bg-neutral-50 dark:bg-neutral-950">
               <aside className="w-full md:w-64 flex-shrink-0 bg-white dark:bg-neutral-900 border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 flex flex-col h-auto md:h-full z-20">
@@ -48,13 +732,291 @@
                 </div>
 
                 <div className="flex flex-col md:flex-1 md:overflow-y-auto p-3 space-y-1 hide-scrollbar">
-<!-- ... existing code ... -->
-```
+                  <div className="text-[10px] font-black text-neutral-400 uppercase tracking-widest px-2 mb-2 mt-2">Accounts</div>
+                  <button onClick={() => {setAdminTab('students'); setAdminListMode('list');}} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${adminTab === 'students' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}>
+                    <SvgIcon name="users" className="w-4 h-4" /> 원생 관리
+                  </button>
+                  <button onClick={() => {setAdminTab('instructors'); setAdminListMode('list');}} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${adminTab === 'instructors' ? 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}>
+                    <SvgIcon name="instructor" className="w-4 h-4" /> 강사 관리
+                  </button>
 
-### 3. '연습실 예약 & 공간메이킹' 달력 화면 상단 로고 추가
-```html:메이킹 실용음악학원 통합 시스템:making_calendar.html
-<!-- ... existing code ... -->
-                    {/* 상단 타이틀 */}
+                  <div className="text-[10px] font-black text-neutral-400 uppercase tracking-widest px-2 mb-2 mt-6">Classes</div>
+                  <button onClick={() => setAdminTab('class_assign')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${adminTab === 'class_assign' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}>
+                    <SvgIcon name="calendar" className="w-4 h-4" /> 수업 배정
+                  </button>
+                  <button onClick={() => setAdminTab('class_manage')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${adminTab === 'class_manage' ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}>
+                    <SvgIcon name="clock" className="w-4 h-4" /> 수업(강사) 시간관리
+                  </button>
+                </div>
+              </aside>
+
+              <div className="flex-1 flex flex-col h-[800px] md:h-full shrink-0 overflow-hidden bg-neutral-50 dark:bg-neutral-950">
+                {(adminTab === 'students' || adminTab === 'instructors') && (
+                  <div className="p-6 md:p-10 flex-1 overflow-y-auto relative">
+                    <div className="max-w-4xl mx-auto">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                        <h2 className="text-xl md:text-2xl font-black text-neutral-900 dark:text-white flex items-center gap-2">
+                          <SvgIcon name={adminTab === 'students' ? 'users' : 'instructor'} className={`w-6 h-6 ${adminTab === 'students' ? 'text-indigo-500' : 'text-purple-500'}`} />
+                          {adminTab === 'students' ? '원생 계정 관리' : '강사 계정 관리'}
+                        </h2>
+                        <div className="flex items-center gap-2">
+                          {adminTab === 'instructors' && adminListMode === 'list' && (
+                            <button onClick={() => setIsCategoryModalOpen(true)} className="p-2 border border-neutral-200 dark:border-neutral-700 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 transition-colors" title="과목(카테고리) 설정">
+                              <SvgIcon name="settings" className="w-5 h-5" />
+                            </button>
+                          )}
+                          {adminListMode === 'list' ? (
+                            <button onClick={() => setAdminListMode('form')} className={`px-4 py-2 text-xs font-bold text-white rounded-xl shadow-sm transition-all hover:-translate-y-0.5 ${adminTab === 'students' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-purple-600 hover:bg-purple-700'}`}>
+                              + 새 {adminTab === 'students' ? '원생' : '강사'} 추가
+                            </button>
+                          ) : (
+                            <button onClick={() => setAdminListMode('list')} className="px-4 py-2 text-xs font-bold border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-xl shadow-sm hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-all">
+                              목록으로 돌아가기
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm p-4 md:p-6 overflow-hidden">
+                        {adminListMode === 'list' ? (
+                          <div className="space-y-3">
+                            {(() => {
+                              const targetList = adminTab === 'students' ? users : instructors;
+                              if (targetList.length === 0) {
+                                return <div className="text-center py-16 text-sm text-neutral-400 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl bg-neutral-50/50 dark:bg-neutral-900/50">등록된 계정이 없습니다.</div>;
+                              }
+                              return targetList.map(u => (
+                                <div key={u.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700 rounded-xl hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors gap-3">
+                                  <div className="flex items-center gap-4">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-white text-lg shrink-0 ${adminTab === 'students' ? 'bg-indigo-500' : 'bg-purple-500'}`}>
+                                      {u.name.charAt(0)}
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-bold text-sm text-neutral-900 dark:text-white">{u.name}{adminTab === 'instructors' ? 'T' : ''}</span>
+                                        {adminTab === 'instructors' && <span className="text-[9px] bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 px-1.5 py-0.5 rounded font-bold">{u.category || '미분류'}</span>}
+                                      </div>
+                                      <span className="text-[11px] text-neutral-500 font-medium mt-0.5">아이디: <span className="text-neutral-700 dark:text-neutral-300 font-bold">{u.id}</span></span>
+                                    </div>
+                                  </div>
+                                  <button onClick={() => { setSelectedAccountForEdit({ ...u, role: adminTab === 'students' ? 'student' : 'instructor' }); setAccountDeleteConfirm(false); }} className="w-full sm:w-auto px-3 py-1.5 text-[10px] font-bold text-neutral-600 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
+                                    상세 수정
+                                  </button>
+                                </div>
+                              ));
+                            })()}
+                          </div>
+                        ) : (
+                          <form onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(e.target);
+                            handleSaveAccount({
+                              id: formData.get('id').trim(),
+                              password: formData.get('password').trim(),
+                              name: formData.get('name').trim(),
+                              ...(adminTab === 'instructors' ? { category: formData.get('category') } : {})
+                            }, adminTab === 'students' ? 'student' : 'instructor');
+                          }} className="space-y-5 max-w-md mx-auto py-6">
+                            <div className="text-center mb-6">
+                              <h3 className="text-lg font-bold">신규 계정 등록</h3>
+                            </div>
+                            {adminTab === 'instructors' && (
+                              <div>
+                                <label className="block text-[11px] font-bold text-neutral-500 mb-1.5 ml-0.5">강사 과목 (전공)</label>
+                                <select name="category" required className="w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm outline-none focus:border-purple-500 transition-colors">
+                                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                              </div>
+                            )}
+                            <div>
+                              <label className="block text-[11px] font-bold text-neutral-500 mb-1.5 ml-0.5">실명 (이름)</label>
+                              <input type="text" name="name" required placeholder="예: 홍길동" className={`w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm outline-none focus:border-${adminTab === 'students' ? 'indigo' : 'purple'}-500 transition-colors`} />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-neutral-500 mb-1.5 ml-0.5">로그인 아이디</label>
+                              <input type="text" name="id" required placeholder="영문/숫자 조합 (예: user01)" className={`w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm outline-none focus:border-${adminTab === 'students' ? 'indigo' : 'purple'}-500 transition-colors`} />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-neutral-500 mb-1.5 ml-0.5">초기 비밀번호</label>
+                              <input type="text" name="password" required placeholder="예: 1234" className={`w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm outline-none focus:border-${adminTab === 'students' ? 'indigo' : 'purple'}-500 transition-colors`} />
+                            </div>
+                            <button type="submit" className={`w-full mt-2 py-3.5 text-white text-sm font-bold rounded-xl shadow-md transition-all active:scale-95 ${adminTab === 'students' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-purple-600 hover:bg-purple-700'}`}>
+                              계정 생성 완료
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {adminTab === 'class_assign' && (
+                  <div className="p-6 md:p-10 flex-1 overflow-y-auto">
+                    <div className="max-w-3xl mx-auto">
+                      <div className="mb-6">
+                        <h2 className="text-xl md:text-2xl font-black text-neutral-900 dark:text-white flex items-center gap-2">
+                          <SvgIcon name="calendar" className="w-6 h-6 text-emerald-500" /> 신규 정규수업 배정
+                        </h2>
+                        <p className="text-sm text-neutral-500 mt-1">강사가 오픈한(ON) 시간대에만 수업을 배정할 수 있습니다.</p>
+                      </div>
+
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.target);
+                        const stId = formData.get('studentId');
+                        const dayTimeVal = formData.get('dayTime');
+                        
+                        if(!dayTimeVal) return showToast("⚠️ 가능한 요일 및 시간을 선택해주세요.");
+                        
+                        const [dayValStr, timeVal] = dayTimeVal.split('-');
+                        const assignDayNum = Number(dayValStr);
+
+                        const stName = users.find(u => u.id === stId)?.name || '학생';
+                        const instName = instructors.find(i => i.id === assignInstId)?.name || '강사';
+                        
+                        const sIdx = GRID_TIME_SLOTS.indexOf(timeVal);
+                        const endTime = sIdx + 2 < GRID_TIME_SLOTS.length ? GRID_TIME_SLOTS[sIdx+2] : GRID_TIME_SLOTS[GRID_TIME_SLOTS.length-1];
+
+                        handleSaveEvent({
+                          type: 'class',
+                          roomId: 'unassigned', 
+                          dayOfWeek: assignDayNum,
+                          startTime: timeVal,
+                          endTime: endTime,
+                          studentId: stId,
+                          instructorId: assignInstId,
+                          title: `${stName} 학생 (${instName}T)`,
+                          desc: ''
+                        });
+                        e.target.reset(); setAssignInstId('');
+                      }} className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm p-6 md:p-8 space-y-6">
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-xs font-bold text-neutral-500 mb-2">담당 강사 우선 선택</label>
+                            <select name="instructorId" value={assignInstId} onChange={e=>setAssignInstId(e.target.value)} required className="w-full px-4 py-3 bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800/50 rounded-xl text-sm font-bold text-purple-900 dark:text-purple-300 outline-none focus:border-purple-500 transition-colors">
+                              <option value="" disabled>강사를 선택하세요</option>
+                              {instructors.map(i => <option key={i.id} value={i.id}>{i.name}T ({i.category})</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-neutral-500 mb-2">수업 요일 및 시작 시간</label>
+                            <select name="dayTime" required className="w-full px-4 py-3 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-sm font-bold text-emerald-900 dark:text-emerald-300 outline-none focus:border-emerald-500 transition-colors">
+                              {!assignInstId ? (
+                                <option value="" disabled selected>강사를 먼저 선택하세요</option>
+                              ) : availableTimesForAssign.length === 0 ? (
+                                <option value="" disabled selected>오픈된 스케줄이 없습니다.</option>
+                              ) : (
+                                <React.Fragment>
+                                  <option value="" disabled selected>선택 (기본 1시간 배정)</option>
+                                  {availableTimesForAssign.map(t => <option key={t.val} value={t.val}>{t.label}</option>)}
+                                </React.Fragment>
+                              )}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800">
+                          <label className="block text-xs font-bold text-neutral-500 mb-2">수강 학생 매칭</label>
+                          <select name="studentId" required className="w-full px-4 py-3 bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800/50 rounded-xl text-sm font-bold text-indigo-900 dark:text-indigo-300 outline-none focus:border-indigo-500 transition-colors">
+                            <option value="" disabled selected>학생을 선택하세요</option>
+                            {users.map(u => <option key={u.id} value={u.id}>{u.name} 학생</option>)}
+                          </select>
+                        </div>
+
+                        <div className="pt-4 flex justify-end">
+                          <button type="submit" className="px-8 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md transition-all active:scale-95 flex items-center gap-2">
+                            <SvgIcon name="plus" className="w-4 h-4" /> 정규 수업 캘린더에 배정
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {adminTab === 'class_manage' && (
+                  <div className="flex flex-col h-full overflow-hidden bg-neutral-50 dark:bg-neutral-950">
+                    <div className="flex-shrink-0 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 p-3 z-10 flex items-center gap-3 overflow-x-auto hide-scrollbar">
+                      <span className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest shrink-0 ml-1">Select Instructor</span>
+                      {instructors.map(inst => (
+                        <button 
+                          key={inst.id} 
+                          onClick={() => setSelectedInstructorForManage(inst.id)}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all shrink-0 border ${selectedInstructorForManage === inst.id ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700/50 shadow-sm' : 'bg-neutral-50 text-neutral-700 border-neutral-200 dark:bg-neutral-850 dark:border-neutral-800 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}
+                        >
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white ${selectedInstructorForManage === inst.id ? 'bg-amber-500' : 'bg-neutral-400 dark:bg-neutral-600'}`}>{inst.name.charAt(0)}</div>
+                          {inst.name}T
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex-1 overflow-auto p-4 md:p-6 relative z-0">
+                      {!selectedInstructorForManage ? (
+                        <div className="h-full flex flex-col items-center justify-center text-neutral-400">
+                          <SvgIcon name="grid" className="w-12 h-12 mb-3 opacity-20" />
+                          <p className="font-semibold text-sm">상단에서 스케줄을 관리할 강사를 선택해주세요.</p>
+                        </div>
+                      ) : (
+                        <div className="w-full max-w-5xl mx-auto h-full flex flex-col pb-6">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 shrink-0 gap-2">
+                            <div>
+                              <h3 className="text-lg md:text-xl font-black flex items-center gap-2 text-neutral-900 dark:text-white">
+                                <span className="text-amber-600 dark:text-amber-500">{instructors.find(i => i.id === selectedInstructorForManage)?.name}T 강사</span> 주간 강의 가능 시간
+                              </h3>
+                              <p className="text-xs text-neutral-500 mt-1">셀을 클릭하여 요일별 30분 단위 수업 오픈 상태(초록색)를 ON/OFF 하세요.</p>
+                            </div>
+                          </div>
+
+                          <div className="flex-1 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden flex flex-col min-h-0">
+                            <div className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] border-b border-neutral-200 dark:border-neutral-800 bg-neutral-100/50 dark:bg-neutral-850/50 shrink-0">
+                              <div className="p-2 flex items-center justify-center text-[10px] font-bold text-neutral-400 border-r border-neutral-200 dark:border-neutral-800">Time</div>
+                              {WORKING_DAYS.map((day, idx) => (
+                                <div key={day.value} className={`p-2 text-center text-xs font-black border-r last:border-r-0 border-neutral-200 dark:border-neutral-800 ${idx === 5 ? 'text-blue-500' : 'text-neutral-700 dark:text-neutral-300'}`}>{day.label}</div>
+                              ))}
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto">
+                              {GRID_TIME_SLOTS.map((time) => (
+                                <div key={time} className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] border-b border-neutral-100 dark:border-neutral-800/50 last:border-b-0 hover:bg-neutral-50 dark:hover:bg-neutral-850/30 transition-colors">
+                                  <div className="py-2 flex items-center justify-center border-r border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+                                    <span className="text-[9px] md:text-[10px] font-bold text-neutral-500">{time}</span>
+                                  </div>
+                                  {WORKING_DAYS.map((day) => {
+                                    const instData = instructors.find(i => i.id === selectedInstructorForManage);
+                                    const key = `${day.value}-${time}`;
+                                    const isAvailable = instData?.availability?.[key];
+                                    
+                                    return (
+                                      <div 
+                                        key={key} 
+                                        onClick={() => toggleInstructorAvailability(instData.id, day.value, time)}
+                                        className={`border-r last:border-r-0 border-neutral-100 dark:border-neutral-800/50 p-1 md:p-1.5 cursor-pointer toggle-cell flex items-center justify-center group ${isAvailable ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}`}
+                                      >
+                                        <div className={`w-full h-full min-h-[24px] md:min-h-[28px] rounded-md border flex items-center justify-center transition-all ${isAvailable ? 'bg-emerald-500 border-emerald-600 text-white shadow-inner scale-100' : 'border-transparent text-transparent group-hover:border-neutral-200 dark:group-hover:border-neutral-700 scale-95'}`}>
+                                          {isAvailable && <SvgIcon name="check" className="w-3 md:w-4 h-3 md:h-4" />}
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+          ) : (
+            <div className="flex flex-col md:flex-row h-full w-full overflow-y-auto md:overflow-hidden bg-neutral-50 dark:bg-neutral-900">
+              
+              <aside className={`shrink-0 bg-white dark:bg-neutral-900 border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 flex flex-col transition-all duration-300 ease-in-out z-20 w-full h-auto md:h-full md:w-64 md:opacity-100`}>
+                <div className="w-full flex flex-col h-auto md:h-full">
+                  <div className="p-4 flex flex-col h-auto md:flex-1 md:overflow-hidden">
+                    
                     <div className="flex items-start justify-between gap-2.5 pb-4 shrink-0 border-b border-neutral-100 dark:border-neutral-800">
                       <div className="flex items-start gap-2.5">
                         <div className="shrink-0 p-1 bg-white rounded-xl shadow-sm border border-neutral-100 dark:border-neutral-800 mt-1">
@@ -76,7 +1038,541 @@
                     </div>
 
                     <div className="flex flex-col pt-4 space-y-4 h-auto md:flex-1 md:overflow-y-auto hide-scrollbar">
-<!-- ... existing code ... -->
-```
+                      
+                      {currentView !== 'space_calendar' && (
+                        <div className="shrink-0 bg-neutral-50/80 dark:bg-neutral-800/30 rounded-xl border border-neutral-200/80 dark:border-neutral-700/50 p-3">
+                          <h3 className="text-[11px] font-black text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5 mb-2">
+                            <span className="text-indigo-500 text-sm">📢</span> 안내사항 및 메모
+                          </h3>
+                          <div className="w-full bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-700 p-2.5 shadow-sm">
+                            {isAdmin ? (
+                              <textarea
+                                value={notice}
+                                onChange={(e) => setNotice(e.target.value)}
+                                onBlur={(e) => handleSaveNotice(e.target.value)}
+                                placeholder="원생들에게 보일 안내사항을 작성하세요"
+                                className="w-full h-full min-h-[90px] bg-transparent resize-none outline-none text-[11px] text-neutral-700 dark:text-neutral-300 placeholder:text-neutral-400 hide-scrollbar"
+                              />
+                            ) : (
+                              <div className="w-full h-full min-h-[90px] text-[11px] text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap leading-relaxed overflow-y-auto hide-scrollbar">
+                                {notice || "등록된 안내사항이 없습니다."}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
-각 위치에 덮어쓰기 하시고 다시 넷플리파이에 업로드하시면, 메인 메뉴가 아닌 서브 메뉴에서도 아주 세련되게 학원 로고가 노출될 것입니다!
+                      <div className="flex flex-col min-h-[150px] max-h-[40vh] md:max-h-none md:min-h-0 md:flex-1 bg-neutral-50/80 dark:bg-neutral-800/30 rounded-xl border border-neutral-200/80 dark:border-neutral-700/50 p-3 mt-2 mb-2">
+                        <h3 className="text-[11px] font-black text-neutral-800 dark:text-neutral-200 mb-3 flex items-center justify-between shrink-0">
+                          <div className="flex items-center gap-1.5"><span className={`${currentView === 'space_calendar' ? 'text-purple-500' : 'text-indigo-500'} text-sm`}>🗓️</span> 오늘의 예약 & 수업</div>
+                          <span className="text-[9px] text-neutral-400 font-medium">{todayStr}</span>
+                        </h3>
+                        <div className="flex-1 overflow-y-auto pr-1 space-y-4 hide-scrollbar">
+                          <div>
+                            <div className="space-y-1.5">
+                              {todayEvents.length === 0 ? (
+                                <p className="text-[9px] text-neutral-400 text-center py-4">오늘 일정이 없습니다.</p>
+                              ) : todayEvents.map(ev => {
+                                const isClass = ev.type === 'class';
+                                const roomName = (currentView === 'space_calendar' ? spaceRooms : rooms).find(r => r.id === ev.roomId)?.name || '미정';
+                                return (
+                                  <div key={ev.id} onClick={() => { setSelectedEvent(ev); setIsEventModalOpen(true); }} className={`flex flex-col gap-0.5 group cursor-pointer p-1.5 rounded-lg border bg-white dark:bg-neutral-800 transition-colors shadow-sm ${isClass ? 'border-emerald-200 dark:border-emerald-800/50 hover:border-emerald-400' : 'border-neutral-200 dark:border-neutral-700 hover:border-indigo-400'}`}>
+                                    <div className="flex justify-between items-center">
+                                      <div className="flex items-center gap-1">
+                                        {isClass && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>}
+                                        <span className={`text-[10px] font-bold ${isClass ? 'text-emerald-600 dark:text-emerald-400' : currentView === 'space_calendar' ? 'text-purple-600 dark:text-purple-400' : 'text-indigo-600 dark:text-indigo-400'}`}>{roomName}</span>
+                                      </div>
+                                      <span className="text-[9px] font-bold text-neutral-400">{ev.startTime} ~ {ev.endTime}</span>
+                                    </div>
+                                    <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200 truncate">{isAdmin ? ev.title : (isClass ? '정규수업' : '예약완료')}</span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                  
+                  {isAdmin && (
+                    <div className="p-4 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 shrink-0">
+                      <button onClick={() => setIsRoomModalOpen(true)} className="w-full py-2.5 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
+                        <SvgIcon name="settings" className="w-4 h-4" /> {currentView === 'space_calendar' ? '공간(합주실) 관리' : '연습실 방 관리'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </aside>
+
+              <div className="flex-1 flex flex-col min-w-0 min-h-[600px] md:min-h-0 md:h-full overflow-hidden transition-all duration-300 bg-white dark:bg-neutral-900 relative z-0 shrink-0">
+                <header className="flex-none z-20 flex items-center justify-between px-3 md:px-6 py-3 bg-white/80 dark:bg-neutral-900/80 backdrop-blur border-b border-neutral-200 dark:border-neutral-800 relative">
+                  <div className="flex items-center gap-1 md:gap-2">
+                    <h2 className="text-base md:text-lg font-black tracking-tight">{year}년 {month + 1}월</h2>
+                    <div className="flex items-center border border-neutral-200 dark:border-neutral-800 rounded-lg p-0.5 ml-1 bg-neutral-50/50 dark:bg-neutral-800/50">
+                      <button onClick={handlePrevMonth} className="p-1 text-neutral-500 hover:bg-white dark:hover:bg-neutral-700 rounded-md"><SvgIcon name="left" className="w-3 h-3" /></button>
+                      <button onClick={handleToday} className="px-1.5 py-0.5 text-[9px] font-bold text-neutral-600 dark:text-neutral-300 hover:bg-white dark:hover:bg-neutral-700 rounded-md">오늘</button>
+                      <button onClick={handleNextMonth} className="p-1 text-neutral-500 hover:bg-white dark:hover:bg-neutral-700 rounded-md"><SvgIcon name="right" className="w-3 h-3" /></button>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <input type="text" placeholder="검색..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-7 pr-3 py-1.5 w-24 sm:w-40 bg-neutral-100 dark:bg-neutral-800 border-none rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none" />
+                    <div className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400"><SvgIcon name="search" className="w-3 h-3" /></div>
+                  </div>
+                </header>
+
+                <div className="flex-1 overflow-y-auto bg-neutral-50/30 dark:bg-neutral-950 flex flex-col relative z-0">
+                  <div className="flex-1 flex flex-col select-none max-w-7xl mx-auto w-full p-2 md:p-6 pb-32 md:pb-6 h-full relative z-0">
+                    <div className={`grid ${currentView === 'space_calendar' ? 'grid-cols-7' : 'grid-cols-6'} border-b border-neutral-200 dark:border-neutral-800 text-center pb-2 shrink-0`}>
+                      {currentView === 'space_calendar' ? (
+                        <React.Fragment>
+                          <span className="text-[10px] md:text-xs font-bold tracking-wider text-red-500">일</span>
+                          {WORKING_DAYS.map((day, idx) => (
+                            <span key={day.value} className={`text-[10px] md:text-xs font-bold tracking-wider ${idx === 5 ? 'text-blue-500' : 'text-neutral-400'}`}>{day.label}</span>
+                          ))}
+                        </React.Fragment>
+                      ) : (
+                        WORKING_DAYS.map((day, idx) => (
+                          <span key={day.value} className={`text-[10px] md:text-xs font-bold tracking-wider ${idx === 5 ? 'text-blue-500' : 'text-neutral-400'}`}>{day.label}</span>
+                        ))
+                      )}
+                    </div>
+
+                    <div className={`grid ${currentView === 'space_calendar' ? 'grid-cols-7' : 'grid-cols-6'} flex-1 border-l border-b border-neutral-100 dark:border-neutral-850/60 mt-1 h-full relative z-0 isolate`} style={{ gridTemplateRows: `repeat(${calendarCells.length / (currentView === 'space_calendar' ? 7 : 6)}, minmax(75px, 1fr))` }}>
+                      {calendarCells.map((cell, idx) => {
+                        const cellDayOfWeek = cell.dayOfWeek; 
+                        
+                        const dayEvents = sortedEventsForCalendar.filter(ev => {
+                          if (ev.type === 'class') return ev.dayOfWeek === cellDayOfWeek;
+                          return ev.date === cell.dateStr;
+                        });
+
+                        const isWeekend = cellDayOfWeek === 6 || cellDayOfWeek === 0;
+
+                        return (
+                          <div
+                            key={cell.dateStr}
+                            onClick={() => { setSelectedDay(cell.dateStr); setIsDayListModalOpen(true); }}
+                            className={`border-r border-t border-neutral-200/80 dark:border-neutral-800/80 py-1 px-0 flex flex-col group transition-all relative cursor-pointer min-h-[75px] md:min-h-0 overflow-hidden ${
+                              cell.isCurrentMonth ? isWeekend ? 'bg-neutral-50/40 dark:bg-neutral-900/10' : 'bg-white dark:bg-neutral-900' : 'bg-neutral-100/40 dark:bg-neutral-950/20 text-neutral-300 dark:text-neutral-700'
+                            } ${cell.isToday ? 'ring-1 ring-inset ring-indigo-500 bg-indigo-50/10 dark:bg-indigo-950/10' : ''} hover:bg-neutral-50 dark:hover:bg-neutral-850/50`}
+                          >
+                            <div className="flex items-start justify-between w-full px-2 pt-0.5 h-6 shrink-0 z-10">
+                              <span className={`text-[10px] md:text-xs font-bold px-1.5 py-0.5 rounded-full ${cell.isToday ? 'bg-indigo-600 text-white shadow-sm' : cellDayOfWeek === 0 ? 'text-red-500' : cellDayOfWeek === 6 ? 'text-blue-500' : 'text-neutral-700 dark:text-neutral-300'}`}>
+                                {cell.day === 1 ? `${parseInt(cell.dateStr.split('-')[1], 10)}/${cell.day}` : cell.day}
+                              </span>
+                              {dayEvents.length > 3 && (
+                                <span className="text-[8px] font-bold text-neutral-500 bg-neutral-200/60 dark:bg-neutral-800 px-1.5 py-[2px] rounded shadow-sm">
+                                  +{dayEvents.length - 3}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex-1 flex flex-col gap-[2px] mt-1 w-full px-1 overflow-hidden z-10">
+                              {dayEvents.slice(0, 3).map((ev) => {
+                                const clr = getRoomColorInfo(ev.roomId, currentView === 'space_calendar');
+                                const isClass = ev.type === 'class';
+                                const targetRooms = currentView === 'space_calendar' ? spaceRooms : rooms;
+                                const shortRoomName = targetRooms.find(r => r.id === ev.roomId)?.name || '미정';
+                                const displayTitle = isAdmin ? ev.title : (isClass ? '정규수업' : '예약마감');
+                                
+                                return (
+                                  <div 
+                                    key={ev.id} 
+                                    onClick={(e) => { 
+                                      e.stopPropagation(); 
+                                      if(!isAdmin && ev.type === 'class') {
+                                        showToast("⚠️ 정규 수업은 관리자만 상세 조회/수정이 가능합니다."); return;
+                                      }
+                                      setSelectedEvent(ev); setIsEventModalOpen(true); 
+                                    }}
+                                    className={`flex items-center px-1 py-0.5 rounded-sm border cursor-pointer hover:opacity-80 transition-opacity truncate w-full shadow-sm ${isClass ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800/60' : `${clr.bg} ${clr.text} ${clr.border}`}`}
+                                    title={`${isClass ? '[정규수업]' : '[예약]'} ${shortRoomName} ${ev.startTime}~${ev.endTime} ${displayTitle}`}
+                                  >
+                                    <span className="font-bold text-[8px] md:text-[9px] truncate w-full text-left flex items-center gap-0.5">
+                                      {isClass && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>}
+                                      [{shortRoomName}] {ev.startTime}~ {displayTitle}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {}
+          {isDayListModalOpen && (
+            <div className="fixed inset-0 bg-neutral-900/60 dark:bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" style={{ zIndex: 9999 }}>
+              <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 p-5 w-full max-w-md shadow-2xl flex flex-col max-h-[85vh]">
+                <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3 mb-4 shrink-0">
+                  <h3 className="font-bold text-base md:text-lg flex items-center gap-1.5"><span className="text-2xl">📅</span> {selectedDay} 예약 현황</h3>
+                  <button onClick={() => setIsDayListModalOpen(false)} className="p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md text-neutral-400"><SvgIcon name="close" className="w-5 h-5" /></button>
+                </div>
+
+                <div className="overflow-y-auto flex-1 space-y-4 pr-2 -mr-2 hide-scrollbar pb-4">
+                  <div className="space-y-2">
+                    {(() => {
+                      const dayOfWeek = new Date(selectedDay).getDay();
+                      const dayEvs = events.filter(ev => {
+                        if (currentView === 'calendar' && ev.type === 'space_reservation') return false;
+                        if (currentView === 'space_calendar' && ev.type !== 'space_reservation') return false;
+                        if (ev.type === 'class') return ev.dayOfWeek === dayOfWeek;
+                        return ev.date === selectedDay;
+                      }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+
+                      if (dayEvs.length === 0) return <div className="text-center py-8 text-sm text-neutral-400 bg-neutral-50 dark:bg-neutral-800/30 rounded-lg border border-dashed border-neutral-200 dark:border-neutral-700">등록된 예약이나 수업이 없습니다.</div>;
+                      
+                      return dayEvs.map(ev => {
+                        const clr = getRoomColorInfo(ev.roomId, currentView === 'space_calendar');
+                        const isClass = ev.type === 'class';
+                        const targetRooms = currentView === 'space_calendar' ? spaceRooms : rooms;
+                        const shortRoomName = targetRooms.find(r => r.id === ev.roomId)?.name || '미정';
+                        const displayTitle = isAdmin ? ev.title : (isClass ? '정규수업' : '예약마감');
+                        
+                        return (
+                          <div key={ev.id} onClick={() => { 
+                            if(!isAdmin && ev.type === 'class') return showToast("⚠️ 정규 수업은 관리자만 상세 조회/수정이 가능합니다.");
+                            setIsDayListModalOpen(false); setSelectedEvent(ev); setIsEventModalOpen(true); 
+                          }} className={`p-3 bg-white dark:bg-neutral-850 rounded-xl border flex gap-4 cursor-pointer transition-colors shadow-sm ${isClass ? 'border-emerald-200 dark:border-emerald-800/50 hover:border-emerald-400' : 'border-neutral-200 dark:border-neutral-700/80 hover:border-indigo-400'}`}>
+                            <div className={`shrink-0 flex flex-col items-center justify-center border-r pr-4 ${isClass ? 'border-emerald-100 dark:border-emerald-800' : 'border-neutral-100 dark:border-neutral-800'}`}>
+                              <span className={`text-sm font-black tracking-tighter ${isClass ? 'text-emerald-700 dark:text-emerald-400' : 'text-neutral-800 dark:text-white'}`}>{ev.startTime}</span>
+                              <span className="text-[10px] text-neutral-400">~ {ev.endTime}</span>
+                            </div>
+                            <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+                              <div className="flex items-center gap-1.5">
+                                {isClass ? (
+                                  <span className="text-[9px] px-2 py-0.5 rounded-sm font-bold border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800/60">정규수업 ({shortRoomName})</span>
+                                ) : (
+                                  <span className={`text-[9px] px-2 py-0.5 rounded-sm font-bold border ${clr.bg} ${clr.text} ${clr.border}`}>{shortRoomName}</span>
+                                )}
+                              </div>
+                              <h4 className="text-sm font-bold text-neutral-800 dark:text-neutral-200 truncate">{displayTitle}</h4>
+                            </div>
+                          </div>
+                        );
+                      })
+                    })()}
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800 mt-2 shrink-0">
+                  <button onClick={() => { setFormDateStr(selectedDay); setIsDayListModalOpen(false); setSelectedEvent(null); setIsEventModalOpen(true); }} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors">
+                    <SvgIcon name="plus" className="w-4 h-4" /> 일회성 예약하기
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isEventModalOpen && (
+            <div className="fixed inset-0 bg-neutral-900/60 dark:bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+              <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 w-full max-w-md shadow-2xl max-h-[95vh] flex flex-col">
+                <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 p-5 shrink-0">
+                  <h3 className="font-bold text-lg">{selectedEvent ? (selectedEvent.type === 'class' ? '정규 수업 정보' : '예약 정보 수정') : '일회성 예약'}</h3>
+                  <button onClick={() => setIsEventModalOpen(false)} className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md text-neutral-400"><SvgIcon name="close" className="w-5 h-5" /></button>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (selectedEvent?.type === 'class' && !isAdmin) return showToast("⚠️ 정규 수업은 관리자만 수정할 수 있습니다.");
+                    const formData = new FormData(e.target);
+                    handleSaveEvent({
+                      title: formData.get('title'),
+                      roomId: formData.get('roomId'),
+                      date: selectedEvent?.type === 'class' ? undefined : formDateStr,
+                      dayOfWeek: selectedEvent?.type === 'class' ? selectedEvent.dayOfWeek : undefined,
+                      startTime: formData.get('startTime'),
+                      endTime: formData.get('endTime'),
+                      desc: formData.get('desc'),
+                      type: selectedEvent?.type || (currentView === 'space_calendar' ? 'space_reservation' : 'reservation')
+                    });
+                  }}
+                  className="flex-1 overflow-y-auto hide-scrollbar p-5 space-y-6"
+                >
+                  {selectedEvent?.type === 'class' ? (
+                     <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded-xl mb-2">
+                       <h4 className="text-emerald-800 dark:text-emerald-300 font-bold text-sm mb-1">매주 {WORKING_DAYS.find(d => d.value === selectedEvent.dayOfWeek)?.label}요일 정규수업</h4>
+                       <p className="text-xs text-emerald-600 dark:text-emerald-400">{selectedEvent.title}</p>
+                     </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-bold text-neutral-400 mb-1.5">예약자 이름 (팀명)</label>
+                      <input type="text" name="title" defaultValue={selectedEvent?.title || ''} required placeholder="이름을 입력하세요" className="w-full px-3 py-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-base font-bold outline-none focus:border-indigo-500 dark:focus:border-indigo-400 transition-colors" />
+                    </div>
+                  )}
+
+                  {selectedEvent?.type !== 'class' && (
+                    <div className="bg-neutral-50/50 dark:bg-neutral-800/30 border border-neutral-200 dark:border-neutral-700 rounded-xl p-3 flex justify-between items-center">
+                      <span className="text-xs font-bold text-neutral-400">선택된 날짜</span>
+                      <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{formDateStr}</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-400 mb-1.5">{currentView === 'space_calendar' ? '공간/합주실 선택' : '연습실 선택'}</label>
+                    <select name="roomId" defaultValue={selectedEvent?.roomId || (currentView === 'space_calendar' ? activeSpaceRooms[0]?.id : activeRooms[0]?.id)} className="w-full px-3 py-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500">
+                      {(currentView === 'space_calendar' ? activeSpaceRooms : activeRooms).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-neutral-400 mb-1.5">시작 시간</label>
+                      <select name="startTime" defaultValue={formStartTime} onChange={(e) => setFormStartTime(e.target.value)} className="w-full px-3 py-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500">
+                        {START_TIME_OPTIONS.map(t => <option key={`start-${t}`} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-neutral-400 mb-1.5">종료 시간</label>
+                      <select name="endTime" defaultValue={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} className="w-full px-3 py-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500">
+                        {END_TIME_OPTIONS.map(t => <option key={`end-${t}`} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-400 mb-1.5">기타 메모사항</label>
+                    <textarea name="desc" rows="2" defaultValue={selectedEvent?.desc || ''} placeholder="메모" className="w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs resize-none outline-none focus:border-indigo-500" />
+                  </div>
+
+                  <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 shrink-0 flex gap-2 justify-between sticky bottom-0 bg-white dark:bg-neutral-900 pb-2">
+                    {selectedEvent ? (
+                      <button type="button" onClick={() => {
+                        if (selectedEvent?.type === 'class' && !isAdmin) return showToast("⚠️ 수업은 관리자만 삭제할 수 있습니다.");
+                        handleDeleteEvent(selectedEvent.id)
+                      }} className="px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-colors">삭제</button>
+                    ) : <div />}
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setIsEventModalOpen(false)} className="px-4 py-2.5 text-xs font-bold border border-neutral-200 dark:border-neutral-700 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">닫기</button>
+                      {(selectedEvent?.type !== 'class' || isAdmin) && (
+                        <button type="submit" className="px-6 py-2.5 text-xs font-bold text-white rounded-xl transition-colors shadow-sm bg-indigo-600 hover:bg-indigo-700">저장</button>
+                      )}
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {isRoomModalOpen && (
+            <div className="fixed inset-0 bg-neutral-900/60 dark:bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+              <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 p-5 w-full max-w-sm shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                <div className="flex flex-col h-full overflow-hidden">
+                  <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3 mb-4 shrink-0">
+                    <h3 className="font-bold text-sm">{currentView === 'space_calendar' ? '공간/합주실 상태 관리' : '연습실 상태 관리 (ON/OFF)'}</h3>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => {
+                        const targetRooms = currentView === 'space_calendar' ? spaceRooms : rooms;
+                        const newId = `${currentView === 'space_calendar' ? 'space' : 'room'}-${Date.now()}`;
+                        const newRoom = { id: newId, name: `새 공간`, color: 'slate', isActive: true };
+                        if (currentView === 'space_calendar') {
+                          const next = [...spaceRooms, newRoom];
+                          setSpaceRooms(next); saveToCloud(null, null, null, null, null, null, next);
+                        } else {
+                          const next = [...rooms, newRoom];
+                          setRooms(next); saveToCloud(null, next, null, null, null, null, null);
+                        }
+                      }} className="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-bold flex items-center gap-1 hover:bg-indigo-700">
+                        <SvgIcon name="plus" className="w-3 h-3" /> 방 추가
+                      </button>
+                      <button onClick={() => setIsRoomModalOpen(false)} className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md text-neutral-400">
+                        <SvgIcon name="close" className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="overflow-y-auto space-y-2 pr-1 hide-scrollbar">
+                    {(currentView === 'space_calendar' ? spaceRooms : rooms).map(r => (
+                      <div key={r.id} className="flex justify-between items-center p-3 border border-neutral-200 dark:border-neutral-800 rounded-xl bg-neutral-50/50 dark:bg-neutral-850/50">
+                        <div className="flex items-center gap-2 flex-1 mr-3">
+                          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLOR_PALETTES.find(p=>p.id===r.color)?.hex || '#ccc'}}></span>
+                          <input 
+                            type="text" 
+                            defaultValue={r.name}
+                            onBlur={(e) => {
+                              const newName = e.target.value.trim();
+                              if (!newName) return;
+                              if (currentView === 'space_calendar') {
+                                const next = spaceRooms.map(sr => sr.id === r.id ? {...sr, name: newName} : sr);
+                                setSpaceRooms(next); saveToCloud(null, null, null, null, null, null, next);
+                              } else {
+                                const next = rooms.map(rr => rr.id === r.id ? {...rr, name: newName} : rr);
+                                setRooms(next); saveToCloud(null, next, null, null, null, null, null);
+                              }
+                            }}
+                            className={`w-full bg-transparent text-xs font-bold outline-none border-b border-transparent focus:border-indigo-500 py-0.5 ${r.isActive === false ? 'text-neutral-400 line-through' : 'text-neutral-800 dark:text-white'}`}
+                          />
+                        </div>
+                        <button onClick={() => toggleRoomActive(r.id, currentView === 'space_calendar')} className={`shrink-0 relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${r.isActive !== false ? 'bg-indigo-500' : 'bg-neutral-300 dark:bg-neutral-700'}`}>
+                           <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform`} style={{ transform: r.isActive !== false ? 'translateX(18px)' : 'translateX(4px)' }}/>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {selectedAccountForEdit && (
+            <div className="fixed inset-0 bg-neutral-900/60 dark:bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+              <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 w-full max-w-md shadow-2xl max-h-[95vh] flex flex-col">
+                <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 p-5 shrink-0">
+                  <h3 className="font-bold text-lg">{selectedAccountForEdit.role === 'student' ? '원생 계정 상세 설정' : '강사 계정 상세 설정'}</h3>
+                  <button onClick={() => { setSelectedAccountForEdit(null); setAccountDeleteConfirm(false); }} className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md text-neutral-400"><SvgIcon name="close" className="w-5 h-5" /></button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto hide-scrollbar p-5 space-y-6">
+                  <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.target);
+                      handleUpdateAccount(selectedAccountForEdit.id, {
+                        name: formData.get('name').trim(),
+                        password: formData.get('password').trim(),
+                        ...(selectedAccountForEdit.role === 'instructor' ? { category: formData.get('category') } : {})
+                      }, selectedAccountForEdit.role);
+                    }} className="space-y-4 border-b border-neutral-100 dark:border-neutral-800 pb-6"
+                  >
+                    <div>
+                      <label className="block text-[11px] font-bold text-neutral-500 mb-1.5 ml-0.5">계정 ID (수정불가)</label>
+                      <input type="text" value={selectedAccountForEdit.id} disabled className="w-full px-4 py-2 bg-neutral-100 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm text-neutral-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-neutral-500 mb-1.5 ml-0.5">실명 (이름)</label>
+                      <input type="text" name="name" defaultValue={selectedAccountForEdit.name} required className="w-full px-4 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm outline-none focus:border-indigo-500" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-neutral-500 mb-1.5 ml-0.5">비밀번호 재설정</label>
+                      <input type="text" name="password" defaultValue={selectedAccountForEdit.password} required className="w-full px-4 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm outline-none focus:border-indigo-500" />
+                    </div>
+                    {selectedAccountForEdit.role === 'instructor' && (
+                      <div>
+                        <label className="block text-[11px] font-bold text-neutral-500 mb-1.5 ml-0.5">강사 과목 (전공)</label>
+                        <select name="category" defaultValue={selectedAccountForEdit.category} className="w-full px-4 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm outline-none focus:border-purple-500">
+                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center pt-2">
+                      <button type="button" 
+                        onClick={() => { 
+                          if(!accountDeleteConfirm) setAccountDeleteConfirm(true); 
+                          else handleDeleteAccount(selectedAccountForEdit.id, selectedAccountForEdit.role); 
+                        }} 
+                        onMouseLeave={() => setAccountDeleteConfirm(false)}
+                        className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${accountDeleteConfirm ? 'bg-red-600 text-white shadow-sm' : 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}>
+                        {accountDeleteConfirm ? '클릭하여 삭제 확정' : '계정 영구삭제'}
+                      </button>
+                      <button type="submit" className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm">정보 수정 저장</button>
+                    </div>
+                  </form>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 mb-3 flex items-center gap-1.5"><SvgIcon name="calendar" className="w-4 h-4 text-emerald-500" /> 배정된 정규 수업</h4>
+                    <div className="space-y-2">
+                      {(() => {
+                        const assignedClasses = events.filter(ev => ev.type === 'class' && (selectedAccountForEdit.role === 'student' ? ev.studentId === selectedAccountForEdit.id : ev.instructorId === selectedAccountForEdit.id));
+                        if(assignedClasses.length === 0) return <div className="text-center text-[11px] text-neutral-400 py-4 bg-neutral-50 dark:bg-neutral-800/30 rounded-lg">배정된 수업이 없습니다.</div>;
+                        return assignedClasses.map(ev => {
+                          const oppName = selectedAccountForEdit.role === 'student' ? (instructors.find(i=>i.id===ev.instructorId)?.name + 'T') : (users.find(u=>u.id===ev.studentId)?.name + ' 학생');
+                          return (
+                            <div key={ev.id} className="p-3 bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700 rounded-xl flex items-center justify-between">
+                              <div>
+                                <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mb-0.5">매주 {WORKING_DAYS.find(d=>d.value===ev.dayOfWeek)?.label}요일 {ev.startTime}~{ev.endTime}</div>
+                                <div className="text-xs font-semibold">{oppName}</div>
+                              </div>
+                              <button onClick={() => handleDeleteEvent(ev.id)} className="p-1.5 text-neutral-400 hover:bg-red-50 hover:text-red-500 rounded-md transition-colors"><SvgIcon name="trash" className="w-4 h-4" /></button>
+                            </div>
+                          )
+                        });
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isCategoryModalOpen && (
+            <div className="fixed inset-0 bg-neutral-900/60 dark:bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+              <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 p-5 w-full max-w-sm shadow-2xl">
+                <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3 mb-4">
+                  <h3 className="font-bold text-sm">강사 과목(전공) 관리</h3>
+                  <button onClick={() => setIsCategoryModalOpen(false)} className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md text-neutral-400">
+                    <SvgIcon name="close" className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    {categories.map((c, idx) => (
+                      <span key={idx} className="px-2.5 py-1 text-xs font-bold bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg">{c}</span>
+                    ))}
+                  </div>
+                  <form onSubmit={(e) => { e.preventDefault(); handleAddCategory(e.target.newCat.value); e.target.reset(); }} className="flex gap-2">
+                    <input type="text" name="newCat" required placeholder="새 과목 입력" className="flex-1 px-3 py-1.5 bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700 rounded-lg text-xs outline-none" />
+                    <button type="submit" className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shrink-0">추가</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isLoginModalOpen && (
+            <div className="fixed inset-0 bg-neutral-900/70 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+              <div className="bg-white dark:bg-neutral-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 p-6 md:p-8 w-full max-w-sm shadow-2xl relative overflow-hidden">
+                <button onClick={() => setIsLoginModalOpen(false)} className="absolute top-4 right-4 p-2 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full transition-colors"><SvgIcon name="close" className="w-5 h-5" /></button>
+                <div className="text-center mb-6 mt-2">
+                  <div className="w-16 h-16 bg-neutral-100 dark:bg-neutral-800 rounded-2xl flex items-center justify-center mx-auto mb-4 text-neutral-600 dark:text-neutral-300"><SvgIcon name="users" className="w-8 h-8" /></div>
+                  <h3 className="font-black text-xl text-neutral-800 dark:text-white">시스템 로그인</h3>
+                </div>
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.target);
+                  const id = formData.get('id').trim();
+                  const pw = formData.get('password').trim();
+                  
+                  if (id === '메이킹' && pw === '0000') {
+                    setIsAdmin(true); setLoggedInUser(null); setIsLoginModalOpen(false);
+                    showToast("🔓 관리자 모드로 접속되었습니다."); return;
+                  }
+
+                  const matchedInstructor = instructors.find(i => i.id === id && i.password === pw);
+                  if (matchedInstructor) {
+                    setLoggedInUser({ ...matchedInstructor, role: 'instructor' }); setIsAdmin(false); setIsLoginModalOpen(false); setCurrentView('student_dashboard');
+                    showToast(`👨‍🏫 환영합니다, ${matchedInstructor.name}T 강사님!`); return;
+                  }
+
+                  const matchedStudent = users.find(u => u.id === id && u.password === pw);
+                  if (matchedStudent) {
+                    setLoggedInUser({ ...matchedStudent, role: 'student' }); setIsAdmin(false); setIsLoginModalOpen(false); setCurrentView('student_dashboard');
+                    showToast(`🧑‍🎓 환영합니다, ${matchedStudent.name} 학생!`); return;
+                  }
+                  
+                  showToast("⚠️ 아이디 또는 비밀번호가 일치하지 않습니다.");
+                }} className="space-y-4">
+                  <input type="text" name="id" required className="w-full px-4 py-3.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500 transition-colors" placeholder="아이디 입력" />
+                  <input type="password" name="password" required className="w-full px-4 py-3.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500 transition-colors" placeholder="비밀번호 입력" />
+                  <button type="submit" className="w-full py-4 mt-2 bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 text-white rounded-xl text-sm font-bold shadow-md transition-all active:scale-95">접속하기</button>
+                </form>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
