@@ -746,99 +746,45 @@
                     <div className="bg-emerald-50 dark:bg-emerald-900/20 px-5 py-4 border-b border-emerald-100 dark:border-emerald-800/50 flex justify-between items-center">
                       <h2 className="font-bold text-emerald-800 dark:text-emerald-300">나의 주간 정규 수업</h2>
                     </div>
-                    {isAdmin ? (
-                      /* 👑 관리자: 예전처럼 넓게 보는 세로 리스트형 뷰 */
-                      <div className="p-0">
-                        {events.filter(ev => ev.type === 'class').length === 0 ? (
-                          <div className="text-center py-12 text-neutral-400 text-sm">
-                            <div className="text-4xl mb-3 opacity-50">🗓️</div>
-                            배정된 정규 수업 일정이 없습니다.
-                          </div>
-                        ) : (
-                          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                            {WORKING_DAYS.map(dayObj => {
-                              const dayClasses = events.filter(ev => ev.type === 'class' && ev.dayOfWeek === dayObj.value).sort((a,b) => a.startTime.localeCompare(b.startTime));
-                              if(dayClasses.length === 0) return null;
-                              
-                              return (
-                                <div key={`day-${dayObj.value}`}>
-                                  <div className="bg-neutral-50 dark:bg-neutral-850 px-4 py-2 border-b border-neutral-100 dark:border-neutral-800">
-                                    <span className="text-xs font-bold text-neutral-500">매주 {dayObj.label}요일</span>
-                                  </div>
-                                  {dayClasses.map(ev => {
-                                    // 단체 학생 쉼표 처리 완벽 적용
-                                    const studentName = ev.studentIds ? ev.studentIds.map(id => users.find(u => u.id === id)?.name).join(', ') : (users.find(u => u.id === ev.studentId)?.name || '학생');
-                                    const instructorName = instructors.find(i => i.id === ev.instructorId)?.name || '미정';
-                                    const displayTitle = `${studentName} 학생 (${instructorName}T)`;
-
-                                    return (
-                                      <li key={ev.id} className="p-5 flex items-center gap-4 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors">
-                                        <div className="shrink-0 flex flex-col items-center justify-center w-16 h-16 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-sm">
-                                          <span className="text-xs font-bold">매주</span>
-                                          <span className="text-xl font-black">{dayObj.label}</span>
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                                            <span className="text-2xl md:text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tighter">{ev.startTime} ~ {ev.endTime}</span>
-                                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-300 px-1.5 py-0.5 rounded ml-2">
-                                              {instructorName}T / {studentName} 학생
-                                            </span>
-                                          </div>
-                                          <h4 className="text-base font-bold text-neutral-800 dark:text-white truncate">{displayTitle}</h4>
-                                        </div>
-                                      </li>
-                                    )
-                                  })}
-                                </div>
-                              )
-                            })}
-                          </ul>
-                        )}
-                      </div>
-                    ) : (
-                      /* 🧑‍🎓 강사/학생: 현재의 예쁜 주간 캘린더형 뷰 */
-                      <div className="p-0 overflow-x-auto hide-scrollbar">
-                        <div className="min-w-[600px] border-t border-neutral-200 dark:border-neutral-800">
-                          <div className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] bg-neutral-100/50 dark:bg-neutral-850/50 border-b border-neutral-200 dark:border-neutral-800">
-                            <div className="p-2 text-center text-[10px] font-bold text-neutral-400 border-r border-neutral-200 dark:border-neutral-800">Time</div>
-                            {WORKING_DAYS.map(day => <div key={day.value} className={`p-2 text-center text-xs font-black border-r last:border-r-0 border-neutral-200 dark:border-neutral-800 ${day.value === 6 ? 'text-blue-500' : 'text-neutral-700 dark:text-neutral-300'}`}>{day.label}</div>)}
-                          </div>
-                          <div className="relative bg-white dark:bg-neutral-900 pb-4">
-                            {GRID_TIME_SLOTS.map((time) => (
-                              <div key={time} className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] border-b border-neutral-100 dark:border-neutral-800/50 relative">
-                                <div className="min-h-[2.5rem] md:min-h-[3rem] h-full py-2 border-r border-neutral-200 dark:border-neutral-800 flex items-center justify-center bg-white dark:bg-neutral-900">
-                                  <span className="text-[9px] md:text-[10px] font-bold text-neutral-400">{time}</span>
-                                </div>
-                                {WORKING_DAYS.map(day => {
-                                  // 관리자가 아니므로 강사/원생 본인의 수업만 필터링
-                                  const classesAtTime = events.filter(ev => ev.type === 'class' && ev.dayOfWeek === day.value && ev.startTime === time && (loggedInUser?.role === 'instructor' ? ev.instructorId === loggedInUser.id : (ev.studentIds ? ev.studentIds.includes(loggedInUser?.id) : ev.studentId === loggedInUser?.id)));
-                                  
-                                  return (
-                                    <div key={day.value} className="border-r last:border-r-0 border-neutral-100 dark:border-neutral-800/50 p-1 flex flex-col gap-1 relative">
-                                      {classesAtTime.map(cls => {
-                                        const stName = cls.studentIds ? cls.studentIds.map(id => users.find(u => u.id === id)?.name).join(', ') : (users.find(u => u.id === cls.studentId)?.name || '학생');
-                                        const instName = instructors.find(i => i.id === cls.instructorId)?.name || '강사';
-                                        
-                                        return (
-                                          <div key={cls.id} className="rounded-md p-1.5 flex flex-col justify-center bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800 z-10 shadow-sm overflow-hidden h-full min-h-[36px]">
-                                            <span className="text-[9px] md:text-[10px] font-black text-emerald-800 dark:text-emerald-300 truncate tracking-tight">
-                                              {loggedInUser?.role === 'instructor' ? `${stName} 학생` : `${instName}T`}
-                                            </span>
-                                            <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 truncate mt-0.5 tracking-tighter">
-                                              {cls.startTime}~{cls.endTime}
-                                            </span>
-                                          </div>
-                                        )
-                                      })}
-                                    </div>
-                                  )
-                                })}
+                    <div className="p-0 overflow-x-auto hide-scrollbar">
+                      <div className="min-w-[600px] border-t border-neutral-200 dark:border-neutral-800">
+                        <div className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] bg-neutral-100/50 dark:bg-neutral-850/50 border-b border-neutral-200 dark:border-neutral-800">
+                          <div className="p-2 text-center text-[10px] font-bold text-neutral-400 border-r border-neutral-200 dark:border-neutral-800">Time</div>
+                          {WORKING_DAYS.map(day => <div key={day.value} className={`p-2 text-center text-xs font-black border-r last:border-r-0 border-neutral-200 dark:border-neutral-800 ${day.value === 6 ? 'text-blue-500' : 'text-neutral-700 dark:text-neutral-300'}`}>{day.label}</div>)}
+                        </div>
+                        <div className="relative bg-white dark:bg-neutral-900 pb-4">
+                          {GRID_TIME_SLOTS.map((time) => (
+                            <div key={time} className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] border-b border-neutral-100 dark:border-neutral-800/50 relative">
+                              <div className="min-h-[2.5rem] md:min-h-[3rem] h-full py-2 border-r border-neutral-200 dark:border-neutral-800 flex items-center justify-center bg-white dark:bg-neutral-900">
+                                <span className="text-[9px] md:text-[10px] font-bold text-neutral-400">{time}</span>
                               </div>
-                            ))}
-                          </div>
+                              {WORKING_DAYS.map(day => {
+                                const classesAtTime = events.filter(ev => ev.type === 'class' && ev.dayOfWeek === day.value && ev.startTime === time && (isAdmin || (loggedInUser?.role === 'instructor' ? ev.instructorId === loggedInUser.id : (ev.studentIds ? ev.studentIds.includes(loggedInUser?.id) : ev.studentId === loggedInUser?.id))));
+                                
+                                return (
+                                  <div key={day.value} className="border-r last:border-r-0 border-neutral-100 dark:border-neutral-800/50 p-1 flex flex-col gap-1 relative">
+                                    {classesAtTime.map(cls => {
+                                      const stName = cls.studentIds ? cls.studentIds.map(id => users.find(u => u.id === id)?.name).join(', ') : (users.find(u => u.id === cls.studentId)?.name || '학생');
+                                      const instName = instructors.find(i => i.id === cls.instructorId)?.name || '강사';
+                                      return (
+                                        <div key={cls.id} className="rounded-md p-1.5 flex flex-col justify-center bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800 z-10 shadow-sm overflow-hidden h-full min-h-[36px]">
+                                          <span className="text-[9px] md:text-[10px] font-black text-emerald-800 dark:text-emerald-300 truncate tracking-tight">{isAdmin ? `${instName}T/${stName}` : loggedInUser?.role === 'instructor' ? `${stName} 학생` : `${instName}T`}</span>
+                                          <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 truncate mt-0.5 tracking-tighter">{cls.startTime}~{cls.endTime}</span>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
           ) : currentView === 'admin_dashboard' && isAdmin ? (
             <div className="flex flex-col md:flex-row h-full w-full overflow-y-auto md:overflow-hidden bg-neutral-50 dark:bg-neutral-950">
