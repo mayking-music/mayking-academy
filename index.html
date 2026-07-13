@@ -395,12 +395,21 @@
         if (payload.startTime >= payload.endTime) return showToast("⚠️ 종료 시간은 시작 시간보다 늦어야 합니다.");
         
         const hasConflict = events.some(ev => {
-          if (ev.roomId !== payload.roomId) return false;
           if (selectedEvent && ev.id === selectedEvent.id) return false;
           
+          // 1. 수업끼리의 중복 검사 (같은 시간에 '강사'나 '학생'이 겹치면 차단)
+          if(ev.type === 'class' && payload.type === 'class') {
+             if (ev.dayOfWeek === payload.dayOfWeek && ev.startTime < payload.endTime && ev.endTime > payload.startTime) {
+                 return ev.instructorId === payload.instructorId || ev.studentId === payload.studentId;
+             }
+             return false;
+          }
+          
+          // 2. 일반 예약끼리의 중복 검사 (방이 다르면 통과)
+          if (ev.roomId !== payload.roomId) return false;
+
           let dateOverlap = false;
-          if(ev.type === 'class' && payload.type === 'class') dateOverlap = ev.dayOfWeek === payload.dayOfWeek;
-          else if(ev.type !== 'class' && payload.type !== 'class') dateOverlap = ev.date === payload.date;
+          if(ev.type !== 'class' && payload.type !== 'class') dateOverlap = ev.date === payload.date;
           else if(ev.type === 'class' && payload.type !== 'class') dateOverlap = ev.dayOfWeek === new Date(payload.date).getDay();
           else if(ev.type !== 'class' && payload.type === 'class') dateOverlap = new Date(ev.date).getDay() === payload.dayOfWeek;
 
@@ -529,7 +538,7 @@
         return events.filter(ev => {
           if (ev.type === 'space_reservation') return currentView === 'space_calendar' && ev.date === todayStr;
           if (currentView === 'space_calendar') return false; 
-          if (ev.type === 'class') return ev.dayOfWeek === todayDayOfWeek;
+          if (ev.type === 'class') return false;
           return ev.date === todayStr;
         }).sort((a,b) => (a.startTime || '').localeCompare(b.startTime || ''))
       }, [events, todayStr, currentView]);
@@ -1406,7 +1415,7 @@
                         const cellDayOfWeek = cellDateObj.getDay(); 
                         
                         const dayEvents = sortedEventsForCalendar.filter(ev => {
-                          if (ev.type === 'class') return ev.dayOfWeek === cellDayOfWeek;
+                          if (ev.type === 'class') return false;
                           return ev.date === cell.dateStr;
                         });
 
@@ -1493,7 +1502,7 @@
                       const dayEvs = events.filter(ev => {
                         if (currentView === 'calendar' && ev.type === 'space_reservation') return false;
                         if (currentView === 'space_calendar' && ev.type !== 'space_reservation') return false;
-                        if (ev.type === 'class') return ev.dayOfWeek === dayOfWeek;
+                        if (ev.type === 'class') return false;
                         return ev.date === selectedDay;
                       }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
 
