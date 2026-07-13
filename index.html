@@ -146,7 +146,7 @@
     }
 
     const GRID_TIME_SLOTS = [];
-    for(let i = 20; i <= 41; i++) {
+    for(let i = 20; i <= 42; i++) { // 20(오전 10시)부터 42(오후 9시)까지 칸 만들기
       const h = String(Math.floor(i / 2)).padStart(2, '0');
       const m = i % 2 === 0 ? '00' : '30';
       GRID_TIME_SLOTS.push(`${h}:${m}`);
