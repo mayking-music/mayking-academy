@@ -181,7 +181,10 @@
       const [searchQuery, setSearchQuery] = useState('');
       const [darkMode, setDarkMode] = useState(false);
       const [toastMessage, setToastMessage] = useState(null);
-      const [currentView, setCurrentView] = useState('landing'); 
+      const [currentView, setCurrentView] = useState(() => sessionStorage.getItem('mayking_currentView') || 'landing'); 
+      useEffect(() => {
+        sessionStorage.setItem('mayking_currentView', currentView);
+      }, [currentView]);
 
       const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false); // 로그아웃 메뉴용 상태
       const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -267,6 +270,7 @@
         setIsAdmin(false); setLoggedInUser(null); setCurrentView('landing');
         sessionStorage.removeItem('mayking_isAdmin');
         sessionStorage.removeItem('mayking_loggedInUser');
+        sessionStorage.removeItem('mayking_currentView'); // 닫기 전 화면 기억도 깔끔하게 초기화
         showToast("안전하게 로그아웃 되었습니다.");
       };
 
