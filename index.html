@@ -182,6 +182,7 @@
       const [darkMode, setDarkMode] = useState(false);
       const [toastMessage, setToastMessage] = useState(null);
       const [currentView, setCurrentView] = useState(() => sessionStorage.getItem('mayking_currentView') || 'landing'); 
+      
       useEffect(() => {
         sessionStorage.setItem('mayking_currentView', currentView);
       }, [currentView]);
@@ -208,14 +209,14 @@
       const [selectedAccountForEdit, setSelectedAccountForEdit] = useState(null);
       const [accountDeleteConfirm, setAccountDeleteConfirm] = useState(false);
 
-      const [assignInstId, setAssignInstId] = useState('');
       const [accountSearchQuery, setAccountSearchQuery] = useState(''); // 계정 검색용
+      const [assignInstId, setAssignInstId] = useState('');
       const [assignStudentIds, setAssignStudentIds] = useState([]); // 그룹 수업 다중 학생용
       const [instSearch, setInstSearch] = useState('');
       const [studentSearch, setStudentSearch] = useState('');
       const [showInstList, setShowInstList] = useState(false);
       const [showStudentList, setShowStudentList] = useState(false);
-      const [assignDay, setAssignDay] = useState(''); // 원장님이 선택한 요일을 기억하는 장치
+      const [assignDay, setAssignDay] = useState(''); 
       const [formDateStr, setFormDateStr] = useState('');
       const [formStartTime, setFormStartTime] = useState('10:00');
       const [formEndTime, setFormEndTime] = useState('11:00');
@@ -277,7 +278,7 @@
         setIsAdmin(false); setLoggedInUser(null); setCurrentView('landing');
         sessionStorage.removeItem('mayking_isAdmin');
         sessionStorage.removeItem('mayking_loggedInUser');
-        sessionStorage.removeItem('mayking_currentView'); // 닫기 전 화면 기억도 깔끔하게 초기화
+        sessionStorage.removeItem('mayking_currentView'); 
         showToast("안전하게 로그아웃 되었습니다.");
       };
 
@@ -542,7 +543,7 @@
         return events.filter(ev => {
           if (ev.type === 'space_reservation') return currentView === 'space_calendar' && ev.date === todayStr;
           if (currentView === 'space_calendar') return false; 
-          if (ev.type === 'class') return false;
+          if (ev.type === 'class') return false; // 연습실 예약 달력에서는 수업 숨김
           return ev.date === todayStr;
         }).sort((a,b) => (a.startTime || '').localeCompare(b.startTime || ''))
       }, [events, todayStr, currentView]);
@@ -705,15 +706,23 @@
               </div>
             </div>
 
-             ) : currentView === 'student_dashboard' ? (
+          ) : currentView === 'student_dashboard' ? (
             <div className="w-full h-full flex flex-col bg-neutral-50/50 dark:bg-neutral-950 overflow-y-auto">
               <header className="flex-none flex items-start justify-between px-4 py-3 md:py-4 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 shadow-sm z-10">
                 <div className="flex items-start gap-2.5">
-                  <div className="shrink-0 mt-1 flex items-center justify-center"><img src="./logo.png" alt="메이킹 로고" className="h-14 w-auto md:h-20 object-contain" /></div>
+                  <div className="shrink-0 mt-1 flex items-center justify-center">
+                    <img src="./logo.png" alt="메이킹 로고" className="h-14 w-auto md:h-20 object-contain" />
+                  </div>
                   <div className="flex flex-col pt-1">
-                    <h1 className="font-black text-[13px] md:text-sm tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-400 leading-tight">메이킹(M.A.Y.KING)<br/>실용음악학원</h1>
-                    <span className="text-[10px] md:text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 tracking-[0.2em] mt-1.5 uppercase">{isAdmin ? "전체 수업시간표" : loggedInUser?.role === 'instructor' ? "나의 강의시간표" : "나의 정규 수업시간표"}</span>
-                    <button onClick={() => setCurrentView('landing')} className="flex items-center gap-1 mt-3 text-[10px] md:text-xs font-bold text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors w-fit"><SvgIcon name="left" className="w-3.5 h-3.5" /> 메인메뉴 돌아가기</button>
+                    <h1 className="font-black text-[13px] md:text-sm tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-400 leading-tight">
+                      메이킹(M.A.Y.KING)<br/>실용음악학원
+                    </h1>
+                    <span className="text-[10px] md:text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 tracking-[0.2em] mt-1.5 uppercase">
+                      {isAdmin ? "전체 수업시간표" : loggedInUser?.role === 'instructor' ? "나의 강의시간표" : "나의 정규 수업시간표"}
+                    </span>
+                    <button onClick={() => setCurrentView('landing')} className="flex items-center gap-1 mt-3 text-[10px] md:text-xs font-bold text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors w-fit">
+                      <SvgIcon name="left" className="w-3.5 h-3.5" /> 메인메뉴 돌아가기
+                    </button>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 mt-1">
@@ -725,7 +734,9 @@
                       <React.Fragment>
                         <div className="fixed inset-0 z-[105]" onClick={() => setIsProfileMenuOpen(false)}></div>
                         <div className="absolute top-full right-0 mt-2 w-28 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-xl overflow-hidden flex flex-col z-[110]">
-                          <button onClick={() => { setIsProfileMenuOpen(false); handleLogout(); }} className="px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-center transition-colors">로그아웃</button>
+                          <button onClick={() => { setIsProfileMenuOpen(false); handleLogout(); }} className="px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-center transition-colors">
+                            로그아웃
+                          </button>
                         </div>
                       </React.Fragment>
                     )}
@@ -737,7 +748,9 @@
                 <div className="max-w-3xl mx-auto space-y-6">
                   {notice && (
                     <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-5 shadow-sm">
-                      <h3 className="text-amber-800 dark:text-amber-400 font-black text-sm mb-2 flex items-center gap-2"><span className="text-lg">📢</span> 학원 안내사항</h3>
+                      <h3 className="text-amber-800 dark:text-amber-400 font-black text-sm mb-2 flex items-center gap-2">
+                        <span className="text-lg">📢</span> 학원 안내사항
+                      </h3>
                       <p className="text-amber-700 dark:text-amber-300 text-sm whitespace-pre-wrap leading-relaxed">{notice}</p>
                     </div>
                   )}
@@ -746,41 +759,100 @@
                     <div className="bg-emerald-50 dark:bg-emerald-900/20 px-5 py-4 border-b border-emerald-100 dark:border-emerald-800/50 flex justify-between items-center">
                       <h2 className="font-bold text-emerald-800 dark:text-emerald-300">나의 주간 정규 수업</h2>
                     </div>
-                    <div className="p-0 overflow-x-auto hide-scrollbar">
-                      <div className="min-w-[600px] border-t border-neutral-200 dark:border-neutral-800">
-                        <div className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] bg-neutral-100/50 dark:bg-neutral-850/50 border-b border-neutral-200 dark:border-neutral-800">
-                          <div className="p-2 text-center text-[10px] font-bold text-neutral-400 border-r border-neutral-200 dark:border-neutral-800">Time</div>
-                          {WORKING_DAYS.map(day => <div key={day.value} className={`p-2 text-center text-xs font-black border-r last:border-r-0 border-neutral-200 dark:border-neutral-800 ${day.value === 6 ? 'text-blue-500' : 'text-neutral-700 dark:text-neutral-300'}`}>{day.label}</div>)}
-                        </div>
-                        <div className="relative bg-white dark:bg-neutral-900 pb-4">
-                          {GRID_TIME_SLOTS.map((time) => (
-                            <div key={time} className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] border-b border-neutral-100 dark:border-neutral-800/50 relative">
-                              <div className="min-h-[2.5rem] md:min-h-[3rem] h-full py-2 border-r border-neutral-200 dark:border-neutral-800 flex items-center justify-center bg-white dark:bg-neutral-900">
-                                <span className="text-[9px] md:text-[10px] font-bold text-neutral-400">{time}</span>
-                              </div>
-                              {WORKING_DAYS.map(day => {
-                                const classesAtTime = events.filter(ev => ev.type === 'class' && ev.dayOfWeek === day.value && ev.startTime === time && (isAdmin || (loggedInUser?.role === 'instructor' ? ev.instructorId === loggedInUser.id : (ev.studentIds ? ev.studentIds.includes(loggedInUser?.id) : ev.studentId === loggedInUser?.id))));
-                                
-                                return (
-                                  <div key={day.value} className="border-r last:border-r-0 border-neutral-100 dark:border-neutral-800/50 p-1 flex flex-col gap-1 relative">
-                                    {classesAtTime.map(cls => {
-                                      const stName = cls.studentIds ? cls.studentIds.map(id => users.find(u => u.id === id)?.name).join(', ') : (users.find(u => u.id === cls.studentId)?.name || '학생');
-                                      const instName = instructors.find(i => i.id === cls.instructorId)?.name || '강사';
-                                      return (
-                                        <div key={cls.id} className="rounded-md p-1.5 flex flex-col justify-center bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800 z-10 shadow-sm overflow-hidden h-full min-h-[36px]">
-                                          <span className="text-[9px] md:text-[10px] font-black text-emerald-800 dark:text-emerald-300 truncate tracking-tight">{isAdmin ? `${instName}T/${stName}` : loggedInUser?.role === 'instructor' ? `${stName} 학생` : `${instName}T`}</span>
-                                          <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 truncate mt-0.5 tracking-tighter">{cls.startTime}~{cls.endTime}</span>
-                                        </div>
-                                      )
-                                    })}
+                    
+                    {/* 👑 관리자: 예전처럼 넓게 보는 세로 리스트형 뷰 */}
+                    {isAdmin ? (
+                      <div className="p-0">
+                        {events.filter(ev => ev.type === 'class').length === 0 ? (
+                          <div className="text-center py-12 text-neutral-400 text-sm">
+                            <div className="text-4xl mb-3 opacity-50">🗓️</div>
+                            배정된 정규 수업 일정이 없습니다.
+                          </div>
+                        ) : (
+                          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                            {WORKING_DAYS.map(dayObj => {
+                              const dayClasses = events.filter(ev => ev.type === 'class' && ev.dayOfWeek === dayObj.value).sort((a,b) => a.startTime.localeCompare(b.startTime));
+                              if(dayClasses.length === 0) return null;
+                              
+                              return (
+                                <div key={`day-${dayObj.value}`}>
+                                  <div className="bg-neutral-50 dark:bg-neutral-850 px-4 py-2 border-b border-neutral-100 dark:border-neutral-800">
+                                    <span className="text-xs font-bold text-neutral-500">매주 {dayObj.label}요일</span>
                                   </div>
-                                )
-                              })}
-                            </div>
-                          ))}
+                                  {dayClasses.map(ev => {
+                                    // 단체 학생 쉼표 처리 완벽 적용
+                                    const studentName = ev.studentIds ? ev.studentIds.map(id => users.find(u => u.id === id)?.name).join(', ') : (users.find(u => u.id === ev.studentId)?.name || '학생');
+                                    const instructorName = instructors.find(i => i.id === ev.instructorId)?.name || '미정';
+                                    const displayTitle = `${studentName} 학생 (${instructorName}T)`;
+
+                                    return (
+                                      <li key={ev.id} className="p-5 flex items-center gap-4 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors">
+                                        <div className="shrink-0 flex flex-col items-center justify-center w-16 h-16 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-sm">
+                                          <span className="text-xs font-bold">매주</span>
+                                          <span className="text-xl font-black">{dayObj.label}</span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                            <span className="text-2xl md:text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tighter">{ev.startTime} ~ {ev.endTime}</span>
+                                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-300 px-1.5 py-0.5 rounded ml-2">
+                                              {instructorName}T / {studentName} 학생
+                                            </span>
+                                          </div>
+                                          <h4 className="text-base font-bold text-neutral-800 dark:text-white truncate">{displayTitle}</h4>
+                                        </div>
+                                      </li>
+                                    )
+                                  })}
+                                </div>
+                              )
+                            })}
+                          </ul>
+                        )}
+                      </div>
+                    ) : (
+                      /* 🧑‍🎓 강사/학생: 예쁜 주간 캘린더형 뷰 (안 겹치고 딱 맞게 들어가게 수정됨) */
+                      <div className="p-0 overflow-x-auto hide-scrollbar">
+                        <div className="min-w-[600px] border-t border-neutral-200 dark:border-neutral-800">
+                          <div className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] bg-neutral-100/50 dark:bg-neutral-850/50 border-b border-neutral-200 dark:border-neutral-800">
+                            <div className="p-2 text-center text-[10px] font-bold text-neutral-400 border-r border-neutral-200 dark:border-neutral-800">Time</div>
+                            {WORKING_DAYS.map(day => <div key={day.value} className={`p-2 text-center text-xs font-black border-r last:border-r-0 border-neutral-200 dark:border-neutral-800 ${day.value === 6 ? 'text-blue-500' : 'text-neutral-700 dark:text-neutral-300'}`}>{day.label}</div>)}
+                          </div>
+                          <div className="relative bg-white dark:bg-neutral-900 pb-4">
+                            {GRID_TIME_SLOTS.map((time) => (
+                              <div key={time} className="grid grid-cols-[60px_repeat(6,1fr)] md:grid-cols-[80px_repeat(6,1fr)] border-b border-neutral-100 dark:border-neutral-800/50 relative">
+                                <div className="min-h-[2.5rem] md:min-h-[3rem] h-full py-2 border-r border-neutral-200 dark:border-neutral-800 flex items-center justify-center bg-white dark:bg-neutral-900">
+                                  <span className="text-[9px] md:text-[10px] font-bold text-neutral-400">{time}</span>
+                                </div>
+                                {WORKING_DAYS.map(day => {
+                                  // 관리자가 아니므로 강사/원생 본인의 수업만 필터링
+                                  const classesAtTime = events.filter(ev => ev.type === 'class' && ev.dayOfWeek === day.value && ev.startTime === time && (loggedInUser?.role === 'instructor' ? ev.instructorId === loggedInUser.id : (ev.studentIds ? ev.studentIds.includes(loggedInUser?.id) : ev.studentId === loggedInUser?.id)));
+                                  
+                                  return (
+                                    <div key={day.value} className="border-r last:border-r-0 border-neutral-100 dark:border-neutral-800/50 p-1 flex flex-col gap-1 relative">
+                                      {classesAtTime.map(cls => {
+                                        const stName = cls.studentIds ? cls.studentIds.map(id => users.find(u => u.id === id)?.name).join(', ') : (users.find(u => u.id === cls.studentId)?.name || '학생');
+                                        const instName = instructors.find(i => i.id === cls.instructorId)?.name || '강사';
+                                        
+                                        return (
+                                          <div key={cls.id} className="rounded-md p-1.5 flex flex-col justify-center bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800 z-10 shadow-sm overflow-hidden h-full min-h-[36px]">
+                                            <span className="text-[9px] md:text-[10px] font-black text-emerald-800 dark:text-emerald-300 truncate tracking-tight">
+                                              {loggedInUser?.role === 'instructor' ? `${stName} 학생` : `${instName}T`}
+                                            </span>
+                                            <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 truncate mt-0.5 tracking-tighter">
+                                              {cls.startTime}~{cls.endTime}
+                                            </span>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -939,7 +1011,7 @@
                   </div>
                 )}
 
-                       {/* 탭: 수업 배정 */}
+                {/* 탭: 수업 배정 */}
                 {adminTab === 'class_assign' && (
                   <div className="p-6 md:p-10 flex-1 overflow-y-auto relative">
                     {(showInstList || showStudentList) && (
@@ -1073,7 +1145,7 @@
                     </div>
                   </div>
                 )}
-                
+
                 {/* 탭: 수업 관리 (전체 목록 및 삭제) */}
                 {adminTab === 'class_list' && (
                   <div className="p-6 md:p-10 flex-1 h-auto md:overflow-y-auto relative">
@@ -1350,7 +1422,7 @@
                         const cellDayOfWeek = cellDateObj.getDay(); 
                         
                         const dayEvents = sortedEventsForCalendar.filter(ev => {
-                          if (ev.type === 'class') return false;
+                          if (ev.type === 'class') return false; // 달력 칸에서 수업 숨김
                           return ev.date === cell.dateStr;
                         });
 
@@ -1437,7 +1509,7 @@
                       const dayEvs = events.filter(ev => {
                         if (currentView === 'calendar' && ev.type === 'space_reservation') return false;
                         if (currentView === 'space_calendar' && ev.type !== 'space_reservation') return false;
-                        if (ev.type === 'class') return false;
+                        if (ev.type === 'class') return false; // 팝업 창에서 수업 숨김
                         return ev.date === selectedDay;
                       }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
 
